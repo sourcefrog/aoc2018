@@ -118,7 +118,7 @@ mod test {
 
     #[test]
     fn test_overlaps_one_claim() {
-        assert_eq!(find_no_overlaps(&[Claim::from_string("#1 @ 1,3: 4x4"),]), 1);
+        assert_eq!(find_no_overlaps(&[Claim::from_string("#1 @ 1,3: 4x4"),]), Some(1));
     }
 
     #[test]
@@ -129,7 +129,7 @@ mod test {
                 Claim::from_string("#2 @ 3,1: 4x4"),
                 Claim::from_string("#3 @ 5,5: 2x2"),
             ]),
-            3
+            Some(3)
         );
     }
 }
