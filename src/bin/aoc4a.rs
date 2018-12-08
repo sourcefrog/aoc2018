@@ -1,7 +1,4 @@
 /// https://adventofcode.com/2018/day/3
-///
-/// Input data must be externally sorted lexicographically, which is also
-/// by date.
 #[macro_use]
 extern crate lazy_static;
 extern crate regex;
@@ -87,12 +84,10 @@ fn ci(caps: &regex::Captures, i: usize) -> u32 {
 /// Parse a slice of lines into a vec of stints.
 fn parse_lines(mut ls: Vec<String>) -> Vec<Nap> {
     lazy_static! {
-        static ref GUARD_RE: Regex = Regex::new(
-            r"\[....-..-.. ..:..\] Guard #(\d+) begins shift").unwrap();
-        static ref WAKE_RE: Regex = Regex::new(
-            r"\[....-..-.. 00:(..)\] wakes up$").unwrap();
-        static ref SLEEP_RE: Regex = Regex::new(
-            r"\[....-..-.. 00:(..)\] falls asleep$").unwrap();
+        static ref GUARD_RE: Regex =
+            Regex::new(r"\[....-..-.. ..:..\] Guard #(\d+) begins shift").unwrap();
+        static ref WAKE_RE: Regex = Regex::new(r"\[....-..-.. 00:(..)\] wakes up$").unwrap();
+        static ref SLEEP_RE: Regex = Regex::new(r"\[....-..-.. 00:(..)\] falls asleep$").unwrap();
     }
     ls.sort();
     let mut ns = Vec::new();
@@ -120,14 +115,4 @@ fn parse_lines(mut ls: Vec<String>) -> Vec<Nap> {
         }
     }
     ns
-}
-
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn parse_input() {
-    }
 }
