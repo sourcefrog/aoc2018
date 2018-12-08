@@ -1,4 +1,4 @@
-/// https://adventofcode.com/2018/day/3
+/// https://adventofcode.com/2018/day/4
 #[macro_use]
 extern crate lazy_static;
 extern crate regex;
