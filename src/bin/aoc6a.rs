@@ -279,7 +279,7 @@ mod test {
 
         assert_eq!(m1, m.grow_completely());
 
-        let mut hs: HashSet<Landing> = vec![0, 1, 2, 5].into_iter().collect(); // A, B, C, F
+        let hs: HashSet<Landing> = vec![0, 1, 2, 5].into_iter().collect(); // A, B, C, F
         assert_eq!(m1.escapees(), hs);
 
         assert_eq!(m1.largest(), 17);
