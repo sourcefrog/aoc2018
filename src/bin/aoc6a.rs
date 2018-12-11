@@ -1,5 +1,3 @@
-#![allow(unused)]
-
 /// https://adventofcode.com/2018/day/6
 
 // Read the list of coordinates; assign each an index.
@@ -227,7 +225,7 @@ impl Map {
             for x in 0..self.w {
                 if let Color::One(l) = self.get(&Point{x, y}) {
                     if !esc.contains(&l) {
-                        let mut e = cs.entry(l).or_insert(0);
+                        let e = cs.entry(l).or_insert(0);
                         *e += 1;
                         if *e > best_count {
                             best_count = *e;
@@ -250,9 +248,9 @@ impl fmt::Debug for Map {
                     Color::One(c) => {
                         (b'A' + c as u8) as char
                     },
-                });
+                }).unwrap();
             }
-            write!(f, "\n");
+            writeln!(f).unwrap();
         }
         Ok(())
     }
