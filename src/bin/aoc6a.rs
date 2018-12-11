@@ -29,8 +29,18 @@
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::fmt;
+use std::io;
+use std::io::prelude::*;
 
 pub fn main() {
+    let pts: Vec<Point> = io::stdin()
+        .lock()
+        .lines()
+        .map(Result::unwrap)
+        .map(|s| Point::from_string(&s))
+        .collect();
+    let m = Map::from_points(&pts).grow_completely();
+    println!("largest: {}", m.largest());
 }
 
 type Coord = i32;
@@ -57,6 +67,14 @@ struct Map {
 }
 
 impl Point {
+    pub fn from_string(s: &str) -> Point {
+        let mut splits = s.split(", ");
+        Point {
+            x: splits.next().unwrap().parse().unwrap(),
+            y: splits.next().unwrap().parse().unwrap(),
+        }
+    }
+
     fn up(&self) -> Point {
         Point{x: self.x, y: self.y-1}
     }
