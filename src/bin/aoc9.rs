@@ -181,13 +181,13 @@ mod test {
     #[test]
     fn try_1618() {
         // 10 players; last marble is worth 1618 points: high score is 8317
-        // assert_eq!(Circle::new(10).play_until(1618).high_score(), 8317);
+        assert_eq!(Circle::new(10).play_until(1618).high_score(), 8317);
     }
 
     #[test]
     fn try_7999() {
         // 13 players; last marble is worth 7999 points: high score is 146373
-        // assert_eq!(Circle::new(13).play_until(7999).high_score(), 146373);
+        assert_eq!(Circle::new(13).play_until(7999).high_score(), 146373);
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod test {
     #[test]
     fn try_5087() {
         // 30 players; last marble is worth 5807 points: high score is 37305
-        // assert_eq!(Circle::new(30).play_until(5807).high_score(), 37305);
+        assert_eq!(Circle::new(30).play_until(5807).high_score(), 37305);
     }
 
     #[test]
