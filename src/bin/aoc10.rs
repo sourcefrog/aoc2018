@@ -145,7 +145,7 @@ position=<-3,  6> velocity=< 2, -1>";
         let mut map = Map::parse(&HI_DEF);
         map.draw();
 
-        for i in 0..3 {
+        for _i in 0..3 {
             map.step();
             map.draw();
         }
