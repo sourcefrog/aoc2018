@@ -234,9 +234,7 @@ impl Map {
             }
         }
         if carts.len() == 1 {
-            Either::Right(
-                *carts.keys().next().unwrap()
-            )
+            Either::Right(*carts.keys().next().unwrap())
         } else if carts.is_empty() {
             panic!("no more carts");
         } else {
@@ -296,10 +294,10 @@ mod test {
             match m.step() {
                 Either::Left(newm) => {
                     m = newm;
-                },
+                }
                 Either::Right(p) => {
                     assert_eq!(p, (4, 6));
-                },
+                }
             }
         }
         unreachable!();
