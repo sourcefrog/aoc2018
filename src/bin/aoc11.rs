@@ -4,6 +4,11 @@
 // (aligned? even sized?) blocks and using them when computing the sum of
 // larger enclosing blocks. But the brute force approach works in a basically
 // acceptable amount of time; about 50s.
+//
+// Or: roll lines of squares into and out of the currently computed square,
+// as it moves across the page, rather than summing up every square as we go.
+// And in fact, to move down a line, we need only roll one set of squares in
+// and one set out.
 
 const SIZE: usize = 301;
 
@@ -83,11 +88,16 @@ impl Map {
         let mut best_power = i32::min_value();
         let mut best_size = 1;
         for sqsz in 1..=SIZE {
-            let (p, pwr) = self.hottest(sqsz);
-            if pwr > best_power {
-                best_size = sqsz;
-                best_power = pwr;
-                best_point = p;
+            for x in 1..=(SIZE-sqsz) {
+                for y in 1..=(SIZE-sqsz) {
+                    let p = (x, y);
+                    let pwr = self.squaresum(p, sqsz);
+                    if pwr > best_power {
+                        best_size = sqsz;
+                        best_power = pwr;
+                        best_point = p;
+                    }
+                }
             }
         }
         (best_point, best_size, best_power)
