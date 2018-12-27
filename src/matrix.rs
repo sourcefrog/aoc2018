@@ -1,6 +1,6 @@
 /// A rectangular 2d matrix.
 ///
-/// Matrices may be indexed by (x, y) coordinates.
+/// Matrices are indexed by (row, column) coordinates.
 use std::ops::{Index, IndexMut};
 
 #[derive(Eq, PartialEq)]
@@ -39,13 +39,13 @@ impl<T: Clone> Matrix<T> {
 impl<T: Clone> Index<(usize, usize)> for Matrix<T> {
     type Output = T;
     fn index(&self, p: (usize, usize)) -> &T {
-        &self.d[self.w * p.1 + p.0]
+        &self.d[self.w * p.0 + p.1]
     }
 }
 
 impl<T: Clone> IndexMut<(usize, usize)> for Matrix<T> {
     fn index_mut<'a>(&'a mut self, p: (usize, usize)) -> &'a mut T {
-        &mut self.d[self.w * p.1 + p.0]
+        &mut self.d[self.w * p.0 + p.1]
     }
 }
 
@@ -67,7 +67,8 @@ impl<T: Clone> FromRows<T> {
         }
     }
 
-    pub fn finish(self) -> Matrix<T> {
+    pub fn finish(mut self) -> Matrix<T> {
+        self.d.shrink_to_fit();
         assert!(self.d.len() % self.w == 0, "Matrix isn't rectangular");
         Matrix {
             w: self.w,
@@ -100,7 +101,7 @@ mod test {
         assert_eq!(m.width(), 3);
         assert_eq!(m.height(), 3);
         assert_eq!(m[(0, 0)], 1);
-        assert_eq!(m[(2, 0)], 3);
+        assert_eq!(m[(0, 2)], 3);
         assert_eq!(m[(2, 2)], 9);
     }
 }
