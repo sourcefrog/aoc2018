@@ -16,7 +16,7 @@ struct Point {
     x: usize,
 }
 
-// Shorthand to construct a point.
+/// Shorthand to construct a point.
 fn point(x: usize, y: usize) -> Point {
     Point { x, y }
 }
@@ -47,6 +47,10 @@ impl Thing {
             Thing::Elf => Thing::Goblin,
             _ => panic!("not a creature: {:?}", self),
         }
+    }
+
+    pub fn is_empty(self) -> bool {
+        self == Thing::Empty
     }
 }
 
@@ -96,7 +100,7 @@ impl Map {
 
     /// Return all valid neighbors of a point, in reading order.
     pub fn neighbors(&self, p: &Point) -> Vec<Point> {
-        let mut v = Vec::new();
+        let mut v = Vec::with_capacity(4);
         let x = p.x;
         let y = p.y;
         if y > 0 {
@@ -112,6 +116,14 @@ impl Map {
             v.push(Point { x, y: y + 1 })
         }
         v
+    }
+
+    /// Return the empty neighbors of a point, in reading order.
+    pub fn empty_neighbors(&self, p: &Point) -> Vec<Point> {
+        self.neighbors(p)
+            .into_iter()
+            .filter(|p| self.thing_at(p).is_empty())
+            .collect()
     }
 
     /// Return the creature that one at `ap` should attack, if any:
@@ -133,21 +145,18 @@ impl Map {
         best_p
     }
 
-    /// Attack the best target for an attack from `ap`
-    /// (if there's any reachable target), and
-    /// maybe kill it.
-    pub fn attack(&mut self, ap: &Point) {
-        if let Some(p) = self.target(ap) {
-            let mut target = self.creature_at_mut(&p).unwrap();
-            if target.hp < ATTACK_POWER {
-                println!("kill {:?}", target);
-                assert!(target.race == Thing::Elf || target.race == Thing::Goblin);
-                self.set_thing_at(&p, Thing::Empty);
-                self.cs.remove(&p);
-            } else {
-                target.hp -= ATTACK_POWER;
-            }
-        };
+    /// Hurt the creature at `tp` and
+    /// maybe kill it. (It doesn't make any difference who's attacking it.)
+    pub fn hurt(&mut self, tp: &Point) {
+        let mut target = self.creature_at_mut(tp).unwrap();
+        assert!(target.race == Thing::Elf || target.race == Thing::Goblin);
+        if target.hp < ATTACK_POWER {
+            println!("kill {:?}", target);
+            self.set_thing_at(tp, Thing::Empty);
+            self.cs.remove(tp);
+        } else {
+            target.hp -= ATTACK_POWER;
+        }
     }
 
     /// Return the creature at P, if any.
@@ -180,6 +189,21 @@ impl Map {
     fn set_thing_at(&mut self, p: &Point, th: Thing) {
         self.m[(p.y, p.x)] = th
     }
+
+    /// Return all the squares that are empty and neighbor creatures of the
+    /// given race, in reading order.
+    fn possible_move_targets(&self, race: Thing) -> Vec<Point> {
+        let mut v: Vec<Point> = self
+            .cs
+            .values()
+            .filter(|cr| cr.race == race)
+            .flat_map(|cr| self.empty_neighbors(&cr.p))
+            .collect();
+        // Although the creatures are visited in order, the points resulting
+        // from them are not necessarily therefore in order, so sort.
+        v.sort();
+        v
+    }
 }
 
 #[cfg(test)]
@@ -190,11 +214,11 @@ mod test {
     fn from_string() {
         let m = Map::from_string(
             "\
-#######
-#.G.E.#
-#E.G.E#
-#.G.E.#
-#######",
+             #######\n\
+             #.G.E.#\n\
+             #E.G.E#\n\
+             #.G.E.#\n\
+             #######\n",
         );
         assert_eq!(m.cs.len(), 7);
 
@@ -210,11 +234,11 @@ mod test {
         // targeting.
         let mut m = Map::from_string(
             "\
-G....
-..G..
-..EG.
-..G..
-...G.",
+             G....\n\
+             ..G..\n\
+             ..EG.\n\
+             ..G..\n\
+             ...G.\n",
         );
         // First goblin can't reach anything
         assert_eq!(m.target(&Point { x: 0, y: 0 }), None);
@@ -231,12 +255,11 @@ G....
     #[test]
     fn combat_example() {
         let mut m = Map::from_string(
-            "\
-G....
-..G..
-..EG.
-..G..
-...G.",
+            "G....\n\
+             ..G..\n\
+             ..EG.\n\
+             ..G..\n\
+             ...G.\n",
         );
         // Tweak the HP to match the example
         m.creature_at_mut(&point(0, 0)).unwrap().hp = 9;
@@ -247,14 +270,51 @@ G....
 
         // Elf should attack second goblin, because it's the first in reading
         // order that has the lowest HP (2).
-        assert_eq!(m.target(&point(2, 2)), Some(point(3, 2)));
+        let elf_p = point(2, 2);
+        let tp = m.target(&elf_p).unwrap();
+        assert_eq!(tp, point(3, 2));
 
         // Actually attack it.
-        m.attack(&point(2, 2));
+        m.hurt(&tp);
         // Goblin on row 2 should have been killed.
         assert_eq!(m.thing_at(&point(3, 2)), Thing::Empty);
         assert_eq!(m.creature_at(&point(3, 2)), None);
         // Elf is still there.
-        assert_eq!(m.creature_at(&point(2,2)).unwrap().race, Thing::Elf);
+        assert_eq!(m.creature_at(&point(2, 2)).unwrap().race, Thing::Elf);
+    }
+
+    #[test]
+    fn move_example() {
+        // Targets:      In range:     Reachable:    Nearest:      Chosen:
+        // #######       #######       #######       #######       #######
+        // #E..G.#       #E.?G?#       #E.@G.#       #E.!G.#       #E.+G.#
+        // #...#.#  -->  #.?.#?#  -->  #.@.#.#  -->  #.!.#.#  -->  #...#.#
+        // #.G.#G#       #?G?#G#       #@G@#G#       #!G.#G#       #.G.#G#
+        // #######       #######       #######       #######       #######
+        let m = Map::from_string(
+            "\
+             #######\n\
+             #E..G.#\n\
+             #...#.#\n\
+             #.G.#G#\n\
+             #######\n",
+        );
+        // Around the single elf, just two squares vacant.
+        assert_eq!(
+            m.possible_move_targets(Thing::Elf),
+            vec![point(2, 1), point(1, 2)]
+        );
+        // Around the goblins, a few squares
+        assert_eq!(
+            m.possible_move_targets(Thing::Goblin),
+            vec![
+                point(3, 1),
+                point(5, 1),
+                point(2, 2),
+                point(5, 2),
+                point(1, 3),
+                point(3, 3)
+            ]
+        );
     }
 }
