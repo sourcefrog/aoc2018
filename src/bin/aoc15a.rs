@@ -199,48 +199,79 @@ impl Map {
         v
     }
 
-    /// Calculate a map of distances from `p` to every reachable point.
-    /// Unreachable points are set to max_value().
+    /// Calculate a map of all the shortest paths from `p` to every reachable
+    /// point. The paths don't contain `p` but they do contain the final point.
+    /// Unreachable points have an empty set of paths.
     /// Implements Djikstra's algorithm.
-    pub fn distances(&self, p: Point) -> Matrix<isize> {
+    pub fn paths(&self, p: Point) -> Paths {
         // Rust's heap is a max-heap so we store the distances as negative to
         // cheaply get the right behavior.
         let mut to_visit: BinaryHeap<(isize, Point)> = BinaryHeap::new();
-        let mut d = Matrix::new(self.w, self.h, isize::max_value());
+        let mut paths = Paths {
+            distance: Matrix::new(self.w, self.h, usize::max_value()),
+            paths: Matrix::new(self.w, self.h, vec![]),
+        };
+
         to_visit.push((0, p));
-        d[p] = 0;
+        paths.distance[p] = 0;
+        paths.paths[p].push(vec![]); // 0-length path
+
         while let Some((queued_distance, ap)) = to_visit.pop() {
             debug_assert!(queued_distance <= 0);
-            // We might have found a better path even while this was queued.
-            if d[ap] < -queued_distance {
+            if (paths.distance[ap] as isize) < -queued_distance {
+                // Although we needed to revisit this point, we already have a
+                // shorter path.
                 continue;
             }
-            let path_dist = d[ap] + 1;
-            for np in self.empty_neighbors(ap).into_iter() {
-                if path_dist < d[np] {
-                    // Found a better path to np.
-                    d[np] = path_dist;
-                    to_visit.push((-path_dist, np));
+            let new_distance = paths.distance[ap] + 1;
+            // Propagate all equal-length paths through to neighbors.
+            // Keep a copy of my paths to avoid worries about aliasing
+            // `paths.paths` within the loop.
+            let ap_paths = paths.paths[ap].clone();
+            for prev_path in ap_paths {
+                for np in self.empty_neighbors(ap).into_iter() {
+                    if paths.distance[np] < new_distance {
+                        // Already have shorter paths
+                        continue;
+                    }
+                    paths.distance[np] = new_distance;
+                    let mut new_path = prev_path.clone();
+                    new_path.push(np);
+                    paths.paths[np].push(new_path);
+                    to_visit.push((-(new_distance as isize), np));
                 }
             }
         }
-        d
+        paths
     }
 
     /// Find the best move target which is closest to `p` and in the event
     /// of a tie the first in reading order. There might be no best move if
     /// no targets are reachable.
     pub fn best_move_target(&self, p: Point, race: Thing) -> Option<Point> {
-        let d = self.distances(p);
-        let mut best_d = isize::max_value();
+        let paths = self.paths(p);
+        let mut best_d = usize::max_value();
         let mut best_p = None;
         for ip in self.possible_move_targets(race) {
-            if d[ip] < best_d {
-                best_d = d[ip];
+            let d = paths.distance[ip];
+            if d < best_d {
+                best_d = d;
                 best_p = Some(ip);
             }
         }
         best_p
+    }
+}
+
+/// Map of shortests paths from one point, to all reachable points.
+struct Paths {
+    distance: Matrix<usize>,
+    paths: Matrix<Vec<Vec<Point>>>,
+}
+
+impl Paths {
+    pub fn can_reach(&self, p: Point) -> bool {
+        self.distance[p] < usize::max_value()
     }
 }
 
@@ -357,23 +388,23 @@ mod test {
         );
 
         // Calculate distance map from elf.
-        let dmap = m.distances(point(1, 1));
-        assert_eq!(dmap[point(1, 1)], 0);
-        assert_eq!(dmap[point(0, 0)], isize::max_value()); // it's a wall
-        assert_eq!(dmap[point(2, 1)], 1);
-        assert_eq!(dmap[point(3, 1)], 2);
-        assert_eq!(dmap[point(4, 1)], isize::max_value()); // it's a goblin
-        assert_eq!(dmap[point(5, 1)], isize::max_value()); // unreachable
-        assert_eq!(dmap[point(1, 2)], 1);
-        assert_eq!(dmap[point(2, 2)], 2);
-        assert_eq!(dmap[point(3, 2)], 3);
-        assert_eq!(dmap[point(4, 2)], isize::max_value()); // wall
-        assert_eq!(dmap[point(5, 2)], isize::max_value()); // unreachable
-        assert_eq!(dmap[point(1, 3)], 2); // unreachable
-        assert_eq!(dmap[point(2, 3)], isize::max_value()); // goblin
-        assert_eq!(dmap[point(3, 3)], 4);
-        assert_eq!(dmap[point(4, 3)], isize::max_value()); // wall
-        assert_eq!(dmap[point(5, 3)], isize::max_value()); // goblin
+        let paths = m.paths(point(1, 1));
+        assert_eq!(paths.distance[point(1, 1)], 0);
+        assert!(!paths.can_reach(point(0, 0))); // it's a wall
+        assert_eq!(paths.distance[point(2, 1)], 1);
+        assert_eq!(paths.distance[point(3, 1)], 2);
+        assert!(!paths.can_reach(point(4, 1))); // it's a goblin
+        assert!(!paths.can_reach(point(5, 1))); // it's a unreachable
+        assert_eq!(paths.distance[point(1, 2)], 1);
+        assert_eq!(paths.distance[point(2, 2)], 2);
+        assert_eq!(paths.distance[point(3, 2)], 3);
+        assert!(!paths.can_reach(point(4, 2))); // wall
+        assert!(!paths.can_reach(point(5, 2))); // unreachable
+        assert_eq!(paths.distance[point(1, 3)], 2);
+        assert!(!paths.can_reach(point(2, 3))); // goblin
+        assert_eq!(paths.distance[point(3, 3)], 4);
+        assert!(!paths.can_reach(point(4, 3))); // wall
+        assert!(!paths.can_reach(point(5, 3))); // goblin
 
         // Find the best place to move to
         assert_eq!(
