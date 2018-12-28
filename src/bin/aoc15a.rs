@@ -52,6 +52,10 @@ impl Thing {
     pub fn is_empty(self) -> bool {
         self == Thing::Empty
     }
+
+    pub fn is_creature(self) -> bool {
+        self == Thing::Elf || self == Thing::Goblin
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -76,7 +80,7 @@ impl Map {
             let r: Vec<Thing> = l.chars().map(Thing::from_char).collect();
             for (x, &th) in r.iter().enumerate() {
                 let p = Point { y, x };
-                if th == Thing::Elf || th == Thing::Goblin {
+                if th.is_creature() {
                     cs.insert(
                         p,
                         Creature {
@@ -149,7 +153,6 @@ impl Map {
     /// maybe kill it. (It doesn't make any difference who's attacking it.)
     pub fn hurt(&mut self, tp: &Point) {
         let mut target = self.creature_at_mut(tp).unwrap();
-        assert!(target.race == Thing::Elf || target.race == Thing::Goblin);
         if target.hp < ATTACK_POWER {
             println!("kill {:?}", target);
             self.set_thing_at(tp, Thing::Empty);
@@ -166,7 +169,7 @@ impl Map {
         if let Some(ref c) = r {
             debug_assert_eq!(c.race, th);
         } else {
-            debug_assert!(th != Thing::Elf && th != Thing::Goblin);
+            debug_assert!(!th.is_creature());
         }
         r
     }
@@ -177,7 +180,7 @@ impl Map {
         if let Some(ref c) = r {
             debug_assert_eq!(c.race, th);
         } else {
-            debug_assert!(th != Thing::Elf && th != Thing::Goblin);
+            debug_assert!(!th.is_creature());
         }
         r
     }
