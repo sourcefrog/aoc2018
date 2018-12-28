@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
+use std::collections::binary_heap::BinaryHeap;
 use std::collections::BTreeMap;
 
 /// https://adventofcode.com/2018/day/15
 use aoc2018::matrix::Matrix;
-use aoc2018::{point, Point};
+use aoc2018::Point;
 
 const INITIAL_HP: usize = 200;
 const ATTACK_POWER: usize = 3;
@@ -200,14 +201,37 @@ impl Map {
 
     /// Calculate a map of distances from `p` to every reachable point.
     /// Unreachable points are set to max_value().
-    pub fn distances(&self, p: Point) {
-        unimplemented!()
+    /// Implements Djikstra's algorithm.
+    pub fn distances(&self, p: Point) -> Matrix<isize> {
+        // Rust's heap is a max-heap so we store the distances as negative to
+        // cheaply get the right behavior.
+        let mut to_visit: BinaryHeap<(isize, Point)> = BinaryHeap::new();
+        let mut d = Matrix::new(self.w, self.h, isize::max_value());
+        to_visit.push((0, p));
+        d[p] = 0;
+        while let Some((queued_distance, ap)) = to_visit.pop() {
+            debug_assert!(queued_distance <= 0);
+            // We might have found a better path even while this was queued.
+            if d[ap] < -queued_distance {
+                continue;
+            }
+            let path_dist = d[ap] + 1;
+            for np in self.empty_neighbors(ap).into_iter() {
+                if path_dist < d[np] {
+                    // Found a better path to np.
+                    d[np] = path_dist;
+                    to_visit.push((-path_dist, np));
+                }
+            }
+        }
+        d
     }
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+    use aoc2018::*;
 
     #[test]
     fn from_string() {
@@ -240,7 +264,7 @@ mod test {
              ...G.\n",
         );
         // First goblin can't reach anything
-        assert_eq!(m.target(point(0,0)), None);
+        assert_eq!(m.target(point(0, 0)), None);
         // Second goblin should attack the elf.
         assert_eq!(
             m.creature_at(Point { x: 2, y: 1 }).unwrap().race,
@@ -315,5 +339,24 @@ mod test {
                 point(3, 3)
             ]
         );
+
+        // Calculate distance map from elf.
+        let dmap = m.distances(point(1, 1));
+        assert_eq!(dmap[point(1, 1)], 0);
+        assert_eq!(dmap[point(0, 0)], isize::max_value()); // it's a wall
+        assert_eq!(dmap[point(2, 1)], 1);
+        assert_eq!(dmap[point(3, 1)], 2);
+        assert_eq!(dmap[point(4, 1)], isize::max_value()); // it's a goblin
+        assert_eq!(dmap[point(5, 1)], isize::max_value()); // unreachable
+        assert_eq!(dmap[point(1, 2)], 1);
+        assert_eq!(dmap[point(2, 2)], 2);
+        assert_eq!(dmap[point(3, 2)], 3);
+        assert_eq!(dmap[point(4, 2)], isize::max_value()); // wall
+        assert_eq!(dmap[point(5, 2)], isize::max_value()); // unreachable
+        assert_eq!(dmap[point(1, 3)], 2); // unreachable
+        assert_eq!(dmap[point(2, 3)], isize::max_value()); // goblin
+        assert_eq!(dmap[point(3, 3)], 4);
+        assert_eq!(dmap[point(4, 3)], isize::max_value()); // wall
+        assert_eq!(dmap[point(5, 3)], isize::max_value()); // goblin
     }
 }
