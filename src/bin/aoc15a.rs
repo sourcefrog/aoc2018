@@ -226,6 +226,22 @@ impl Map {
         }
         d
     }
+
+    /// Find the best move target which is closest to `p` and in the event
+    /// of a tie the first in reading order. There might be no best move if
+    /// no targets are reachable.
+    pub fn best_move_target(&self, p: Point, race: Thing) -> Option<Point> {
+        let d = self.distances(p);
+        let mut best_d = isize::max_value();
+        let mut best_p = None;
+        for ip in self.possible_move_targets(race) {
+            if d[ip] < best_d {
+                best_d = d[ip];
+                best_p = Some(ip);
+            }
+        }
+        best_p
+    }
 }
 
 #[cfg(test)]
@@ -358,5 +374,11 @@ mod test {
         assert_eq!(dmap[point(3, 3)], 4);
         assert_eq!(dmap[point(4, 3)], isize::max_value()); // wall
         assert_eq!(dmap[point(5, 3)], isize::max_value()); // goblin
+
+        // Find the best place to move to
+        assert_eq!(
+            m.best_move_target(point(1, 1), Thing::Goblin),
+            Some(point(3, 1))
+        );
     }
 }
