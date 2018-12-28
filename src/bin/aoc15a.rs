@@ -4,22 +4,12 @@ use std::collections::BTreeMap;
 
 /// https://adventofcode.com/2018/day/15
 use aoc2018::matrix::Matrix;
+use aoc2018::{point, Point};
 
 const INITIAL_HP: usize = 200;
 const ATTACK_POWER: usize = 3;
 
 pub fn main() {}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
-struct Point {
-    y: usize,
-    x: usize,
-}
-
-/// Shorthand to construct a point.
-fn point(x: usize, y: usize) -> Point {
-    Point { x, y }
-}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum Thing {
@@ -103,7 +93,7 @@ impl Map {
     }
 
     /// Return all valid neighbors of a point, in reading order.
-    pub fn neighbors(&self, p: &Point) -> Vec<Point> {
+    pub fn neighbors(&self, p: Point) -> Vec<Point> {
         let mut v = Vec::with_capacity(4);
         let x = p.x;
         let y = p.y;
@@ -123,10 +113,10 @@ impl Map {
     }
 
     /// Return the empty neighbors of a point, in reading order.
-    pub fn empty_neighbors(&self, p: &Point) -> Vec<Point> {
+    pub fn empty_neighbors(&self, p: Point) -> Vec<Point> {
         self.neighbors(p)
             .into_iter()
-            .filter(|p| self.thing_at(p).is_empty())
+            .filter(|p| self.thing_at(*p).is_empty())
             .collect()
     }
 
@@ -134,14 +124,14 @@ impl Map {
     /// the neighbor with
     /// the lowest hit points, and in the case of a tie the one first in reading
     /// order.
-    pub fn target(&mut self, ap: &Point) -> Option<Point> {
+    pub fn target(&mut self, ap: Point) -> Option<Point> {
         let mut best_p: Option<Point> = None;
         let mut best_hp: usize = usize::max_value();
         let a_race = self.creature_at(ap).unwrap().race;
-        for p in self.neighbors(ap).iter() {
+        for p in self.neighbors(ap).into_iter() {
             if let Some(pc) = self.creature_at(p) {
                 if pc.race == a_race.enemy() && pc.hp < best_hp {
-                    best_p = Some(*p);
+                    best_p = Some(p);
                     best_hp = pc.hp;
                 }
             }
@@ -151,21 +141,21 @@ impl Map {
 
     /// Hurt the creature at `tp` and
     /// maybe kill it. (It doesn't make any difference who's attacking it.)
-    pub fn hurt(&mut self, tp: &Point) {
+    pub fn hurt(&mut self, tp: Point) {
         let mut target = self.creature_at_mut(tp).unwrap();
         if target.hp < ATTACK_POWER {
             println!("kill {:?}", target);
             self.set_thing_at(tp, Thing::Empty);
-            self.cs.remove(tp);
+            self.cs.remove(&tp);
         } else {
             target.hp -= ATTACK_POWER;
         }
     }
 
     /// Return the creature at P, if any.
-    pub fn creature_at_mut(&mut self, p: &Point) -> Option<&mut Creature> {
+    pub fn creature_at_mut(&mut self, p: Point) -> Option<&mut Creature> {
         let th = self.thing_at(p);
-        let r = self.cs.get_mut(p);
+        let r = self.cs.get_mut(&p);
         if let Some(ref c) = r {
             debug_assert_eq!(c.race, th);
         } else {
@@ -174,8 +164,8 @@ impl Map {
         r
     }
 
-    pub fn creature_at(&self, p: &Point) -> Option<&Creature> {
-        let r = self.cs.get(p);
+    pub fn creature_at(&self, p: Point) -> Option<&Creature> {
+        let r = self.cs.get(&p);
         let th = self.thing_at(p);
         if let Some(ref c) = r {
             debug_assert_eq!(c.race, th);
@@ -185,12 +175,12 @@ impl Map {
         r
     }
 
-    pub fn thing_at(&self, p: &Point) -> Thing {
-        self.m[(p.y, p.x)]
+    pub fn thing_at(&self, p: Point) -> Thing {
+        self.m[p]
     }
 
-    fn set_thing_at(&mut self, p: &Point, th: Thing) {
-        self.m[(p.y, p.x)] = th
+    fn set_thing_at(&mut self, p: Point, th: Thing) {
+        self.m[p] = th
     }
 
     /// Return all the squares that are empty and neighbor creatures of the
@@ -200,12 +190,18 @@ impl Map {
             .cs
             .values()
             .filter(|cr| cr.race == race)
-            .flat_map(|cr| self.empty_neighbors(&cr.p))
+            .flat_map(|cr| self.empty_neighbors(cr.p))
             .collect();
         // Although the creatures are visited in order, the points resulting
         // from them are not necessarily therefore in order, so sort.
         v.sort();
         v
+    }
+
+    /// Calculate a map of distances from `p` to every reachable point.
+    /// Unreachable points are set to max_value().
+    pub fn distances(&self, p: Point) {
+        unimplemented!()
     }
 }
 
@@ -226,7 +222,7 @@ mod test {
         assert_eq!(m.cs.len(), 7);
 
         assert_eq!(
-            m.neighbors(&Point { x: 0, y: 0 }),
+            m.neighbors(point(0, 0)),
             vec![Point { x: 1, y: 0 }, Point { x: 0, y: 1 }]
         );
     }
@@ -244,15 +240,15 @@ mod test {
              ...G.\n",
         );
         // First goblin can't reach anything
-        assert_eq!(m.target(&Point { x: 0, y: 0 }), None);
+        assert_eq!(m.target(point(0,0)), None);
         // Second goblin should attack the elf.
         assert_eq!(
-            m.creature_at(&Point { x: 2, y: 1 }).unwrap().race,
+            m.creature_at(Point { x: 2, y: 1 }).unwrap().race,
             Thing::Goblin
         );
-        assert_eq!(m.target(&Point { x: 2, y: 1 }), Some(Point { x: 2, y: 2 }));
+        assert_eq!(m.target(Point { x: 2, y: 1 }), Some(Point { x: 2, y: 2 }));
         // Elf should attack second goblin, because it's first in reading order.
-        assert_eq!(m.target(&Point { x: 2, y: 2 }), Some(Point { x: 2, y: 1 }));
+        assert_eq!(m.target(Point { x: 2, y: 2 }), Some(Point { x: 2, y: 1 }));
     }
 
     #[test]
@@ -265,25 +261,25 @@ mod test {
              ...G.\n",
         );
         // Tweak the HP to match the example
-        m.creature_at_mut(&point(0, 0)).unwrap().hp = 9;
-        m.creature_at_mut(&point(2, 1)).unwrap().hp = 4;
-        m.creature_at_mut(&point(3, 2)).unwrap().hp = 2;
-        m.creature_at_mut(&point(2, 3)).unwrap().hp = 2;
-        m.creature_at_mut(&point(3, 4)).unwrap().hp = 1;
+        m.creature_at_mut(point(0, 0)).unwrap().hp = 9;
+        m.creature_at_mut(point(2, 1)).unwrap().hp = 4;
+        m.creature_at_mut(point(3, 2)).unwrap().hp = 2;
+        m.creature_at_mut(point(2, 3)).unwrap().hp = 2;
+        m.creature_at_mut(point(3, 4)).unwrap().hp = 1;
 
         // Elf should attack second goblin, because it's the first in reading
         // order that has the lowest HP (2).
         let elf_p = point(2, 2);
-        let tp = m.target(&elf_p).unwrap();
+        let tp = m.target(elf_p).unwrap();
         assert_eq!(tp, point(3, 2));
 
         // Actually attack it.
-        m.hurt(&tp);
+        m.hurt(tp);
         // Goblin on row 2 should have been killed.
-        assert_eq!(m.thing_at(&point(3, 2)), Thing::Empty);
-        assert_eq!(m.creature_at(&point(3, 2)), None);
+        assert_eq!(m.thing_at(point(3, 2)), Thing::Empty);
+        assert_eq!(m.creature_at(point(3, 2)), None);
         // Elf is still there.
-        assert_eq!(m.creature_at(&point(2, 2)).unwrap().race, Thing::Elf);
+        assert_eq!(m.creature_at(point(2, 2)).unwrap().race, Thing::Elf);
     }
 
     #[test]

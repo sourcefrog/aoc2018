@@ -3,6 +3,8 @@
 /// Matrices are indexed by (row, column) coordinates.
 use std::ops::{Index, IndexMut};
 
+use crate::Point;
+
 #[derive(Eq, PartialEq)]
 pub struct Matrix<T> {
     w: usize,
@@ -43,9 +45,22 @@ impl<T: Clone> Index<(usize, usize)> for Matrix<T> {
     }
 }
 
+impl<T: Clone> Index<Point> for Matrix<T> {
+    type Output = T;
+    fn index(&self, p: Point) -> &T {
+        &self.d[self.w * p.y + p.x]
+    }
+}
+
 impl<T: Clone> IndexMut<(usize, usize)> for Matrix<T> {
     fn index_mut<'a>(&'a mut self, p: (usize, usize)) -> &'a mut T {
         &mut self.d[self.w * p.0 + p.1]
+    }
+}
+
+impl<T: Clone> IndexMut<Point> for Matrix<T> {
+    fn index_mut<'a>(&'a mut self, p: Point) -> &'a mut T {
+        &mut self.d[self.w * p.y + p.x]
     }
 }
 
