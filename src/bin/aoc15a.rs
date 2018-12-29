@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
+use std::fs::File;
+use std::io::Read;
 
 /// https://adventofcode.com/2018/day/15
 use aoc2018::matrix::Matrix;
@@ -9,7 +11,23 @@ use aoc2018::Point;
 const INITIAL_HP: usize = 200;
 const ATTACK_POWER: usize = 3;
 
-pub fn main() {}
+pub fn main() {
+    let mut s = String::new();
+    File::open("input/input15.txt")
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
+    let mut m = Map::from_string(&s);
+    for (p, c) in m.cs.iter() {
+        println!("({}, {}) => {:?}", p.x, p.y, c);
+
+        let r = Routing::new(&m, *p, c.race.enemy()).unwrap();
+        println!(
+            "  chosen=({}, {}), step=({}, {}), dist={}",
+            r.chosen.x, r.chosen.y, r.step.x, r.step.y, r.dist
+        );
+    }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum Thing {
@@ -182,33 +200,18 @@ impl Map {
     fn set_thing_at(&mut self, p: Point, th: Thing) {
         self.m[p] = th
     }
-
-    /// Return all the squares that are empty and neighbor creatures of the
-    /// given race, in reading order.
-    fn possible_move_targets(&self, race: Thing) -> Vec<Point> {
-        let mut v: Vec<Point> = self
-            .cs
-            .values()
-            .filter(|cr| cr.race == race)
-            .flat_map(|cr| self.empty_neighbors(cr.p))
-            .collect();
-        // Although the creatures are visited in order, the points resulting
-        // from them are not necessarily therefore in order, so sort.
-        v.sort();
-        v
-    }
 }
 
 struct Routing {
-    /// Distance from the origin.
-    d: Matrix<Option<usize>>,
-
     /// Chosen destination
-    chosen: Option<Point>,
+    chosen: Point,
 
     /// Next step to take from the origin: the lowest-ordered step towards
     /// the chosen destination.
-    step: Option<Point>,
+    step: Point,
+
+    /// Distance to the chosen destination
+    dist: usize,
 }
 
 /// New approach on finding the best destination and first step towards it,
@@ -217,13 +220,14 @@ struct Routing {
 ///
 /// Dests must be in sorted order.
 impl Routing {
-    pub fn new(m: &Map, origin: Point, dests: &[Point]) -> Routing {
+    pub fn new(m: &Map, origin: Point, enemy: Thing) -> Option<Routing> {
         // All the points numbered in the last round, and needing to be
         // checked in the next round.
         let mut last = vec![origin];
         let mut d = Matrix::new(m.w, m.h, None);
         let mut dist = 0;
-        let mut hit = false;
+        // Points neighboring an enemy.
+        let mut ends = Vec::new();
         d[origin] = Some(0);
         //
         // First, flood-fill out from the starting point. The starting point is
@@ -237,44 +241,38 @@ impl Routing {
         // the possible destinations, or if we run out of reachable empty
         // squares to number.
 
-        // TODO: We could skip pre-calculation of potential move targets, and
-        // instead just wait to see when we arrive at a target of the given
-        // race.
-
         // TODO: We could always visit potential destinations in point order,
         // rather than grouped around `lp`, and therefore not need to keep
         // a list of `dests` that are later filtered.
 
-        while !hit && !last.is_empty() {
+        while ends.is_empty() && !last.is_empty() {
             let mut next = Vec::new();
             dist += 1;
             for lp in last.into_iter() {
-                for np in m.empty_neighbors(lp).into_iter() {
-                    if d[np].is_none() {
+                for np in m.neighbors(lp).into_iter() {
+                    if m.thing_at(np) == enemy {
+                        // lp neighbors an enemy; we could stop here.
+                        ends.push(lp);
+                    } else if m.thing_at(np).is_empty() && d[np].is_none() {
+                        // We could move to np along this path; let's see if
+                        // we could move further
                         d[np] = Some(dist);
                         next.push(np);
-                        if dests.contains(&np) {
-                            hit = true;
-                        }
                     }
                 }
             }
             last = next;
         }
 
-        // The first destination in order, for which we found a distance, is the
-        // chosen one.
-        //
-        // But it might be that none of the destinations are actually reachable
-        // from here.
-        let chosen = dests.iter().filter(|p| d[**p].is_some()).next().cloned();
-        if chosen.is_none() {
-            return Routing {
-                d,
-                chosen,
-                step: None,
-            };
+        if ends.is_empty() {
+            // Filled as much of the map as we can, without finding any
+            // reachable enemies. Let's stop.
+            return None;
         }
+
+        // Chosen destination is the first one, in order.
+        ends.sort();
+        let chosen = ends[0];
 
         // Now walk back from that chosen point towards the origin, taking at each
         // step the smallest numbered point. Since we only ever numbered
@@ -282,8 +280,8 @@ impl Routing {
         // we find must be a minimal path, and if we always prefer to go to
         // the smallest-numbered neighbors we must arrive at the smallest
         // destination.
-        let mut j = dist;
-        let mut backp = chosen.unwrap();
+        let mut j = dist - 1;
+        let mut backp = chosen;
         'backup: while j > 1 {
             debug_assert_eq!(d[backp], Some(j));
             for np in m.empty_neighbors(backp) {
@@ -296,11 +294,11 @@ impl Routing {
             panic!("No backup step found from {:?}", backp);
         }
 
-        Routing {
-            d,
+        Some(Routing {
             chosen,
-            step: Some(backp),
-        }
+            step: backp,
+            dist,
+        })
     }
 }
 
@@ -398,43 +396,13 @@ mod test {
              #.G.#G#\n\
              #######\n",
         );
-        // Around the single elf, just two squares vacant.
-        assert_eq!(
-            m.possible_move_targets(Thing::Elf),
-            vec![point(2, 1), point(1, 2)]
-        );
-        // Around the goblins, a few squares
-        let pmt = m.possible_move_targets(Thing::Goblin);
-        assert_eq!(
-            pmt,
-            vec![
-                point(3, 1),
-                point(5, 1),
-                point(2, 2),
-                point(5, 2),
-                point(1, 3),
-                point(3, 3)
-            ]
-        );
-        let r = Routing::new(&m, point(1, 1), &pmt);
-
-        assert_eq!(r.d[point(1, 1)], Some(0)); // the elf itself
-        assert_eq!(r.d[point(2, 1)], Some(1));
-        assert_eq!(r.d[point(3, 1)], Some(2));
-
-        assert_eq!(r.d[point(1, 2)], Some(1));
-        assert_eq!(r.d[point(2, 2)], Some(2));
-        // This one shouldn't be calculated because it requires going further
-        // than the first destination.
-        assert_eq!(r.d[point(3, 2)], None);
-
-        assert_eq!(r.d[point(1, 3)], Some(2));
+        let r = Routing::new(&m, point(1, 1), Thing::Goblin).unwrap();
 
         // The lowest-point destination is chosen.
-        assert_eq!(r.chosen, Some(point(3, 1)));
+        assert_eq!(r.chosen, point(3, 1));
 
         // The first step is towards it.
-        assert_eq!(r.step, Some(point(2, 1)));
+        assert_eq!(r.step, point(2, 1));
     }
 
     /// An example of routing where there are multiple paths
@@ -448,11 +416,8 @@ mod test {
              #...G.#\n\
              #######\n",
         );
-        let pmt = m.possible_move_targets(Thing::Goblin);
-        assert_eq!(pmt, vec![point(4, 2), point(3, 3), point(5, 3)]);
-
-        let r = Routing::new(&m, point(2, 1), &pmt);
-        assert_eq!(r.chosen, Some(point(4, 2)));
-        assert_eq!(r.step, Some(point(3, 1)));
+        let r = Routing::new(&m, point(2, 1), Thing::Goblin).unwrap();
+        assert_eq!(r.chosen, point(4, 2));
+        assert_eq!(r.step, point(3, 1));
     }
 }
