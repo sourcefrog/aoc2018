@@ -228,11 +228,22 @@ impl Map {
             // Keep a copy of my paths to avoid worries about aliasing
             // `paths.paths` within the loop.
             let ap_paths = paths.paths[ap].clone();
-            for prev_path in ap_paths {
-                for np in self.empty_neighbors(ap).into_iter() {
+            for old_path in ap_paths.iter() {
+                debug_assert_eq!(old_path.len(), paths.distance[ap]);
+            }
+            for np in self.empty_neighbors(ap).into_iter() {
+                for prev_path in ap_paths.iter() {
+                    // Check all already-known paths have the
+                    // expected length
+                    for old_path in paths.paths[np].iter() {
+                        debug_assert_eq!(old_path.len(), paths.distance[np]);
+                    }
                     if paths.distance[np] < new_distance {
                         // Already have shorter paths
                         continue;
+                    } else if paths.distance[np] > new_distance {
+                        // Already have _longer_ paths; discard them.
+                        paths.paths[np].clear();
                     }
                     paths.distance[np] = new_distance;
                     let mut new_path = prev_path.clone();
@@ -248,8 +259,7 @@ impl Map {
     /// Find the best move target which is closest to `p` and in the event
     /// of a tie the first in reading order. There might be no best move if
     /// no targets are reachable.
-    pub fn best_move_target(&self, p: Point, race: Thing) -> Option<Point> {
-        let paths = self.paths(p);
+    pub fn best_destination(&self, paths: &Paths, race: Thing) -> Option<Point> {
         let mut best_d = usize::max_value();
         let mut best_p = None;
         for ip in self.possible_move_targets(race) {
@@ -260,6 +270,20 @@ impl Map {
             }
         }
         best_p
+    }
+
+    /// Find the first step from p: of all the first steps on equally shortest
+    /// paths, towards the destination,
+    /// the one that's first in reading order.
+    pub fn best_next_step(&self, paths: &Paths, dest: Point) -> Option<Point> {
+        for ip in paths.paths[dest].iter() {
+            debug_assert_eq!(ip.len(), paths.distance[dest]);
+        }
+        paths.paths[dest]
+            .iter()
+            .map(|p| p.first().unwrap())
+            .cloned()
+            .min()
     }
 }
 
@@ -406,10 +430,34 @@ mod test {
         assert!(!paths.can_reach(point(4, 3))); // wall
         assert!(!paths.can_reach(point(5, 3))); // goblin
 
-        // Find the best place to move to
+        // Points with two equal-length have them both stored.
         assert_eq!(
-            m.best_move_target(point(1, 1), Thing::Goblin),
-            Some(point(3, 1))
+            paths.paths[(2, 2)],
+            vec![
+                vec![point(1, 2), point(2, 2)],
+                vec![point(2, 1), point(2, 2)]
+            ]
         );
+
+        // Find the best place to move to
+        let dest = m.best_destination(&paths, Thing::Goblin).unwrap();
+        assert_eq!(dest, point(3, 1));
+    }
+
+    #[test]
+    fn next_step_example() {
+        let m = Map::from_string(
+            "\
+             #######\n\
+             #.E...#\n\
+             #.....#\n\
+             #...G.#\n\
+             #######\n",
+        );
+        println!("calc paths");
+        let paths = m.paths(point(2, 1));
+        println!("calc dest");
+        let dest = m.best_destination(&paths, Thing::Goblin).unwrap();
+        assert_eq!(dest, point(4, 2));
     }
 }
