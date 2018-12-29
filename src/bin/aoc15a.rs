@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use std::collections::binary_heap::BinaryHeap;
 use std::collections::BTreeMap;
 
 /// https://adventofcode.com/2018/day/15
@@ -198,104 +197,110 @@ impl Map {
         v.sort();
         v
     }
+}
 
-    /// Calculate a map of all the shortest paths from `p` to every reachable
-    /// point. The paths don't contain `p` but they do contain the final point.
-    /// Unreachable points have an empty set of paths.
-    /// Implements Djikstra's algorithm.
-    pub fn paths(&self, p: Point) -> Paths {
-        // Rust's heap is a max-heap so we store the distances as negative to
-        // cheaply get the right behavior.
-        let mut to_visit: BinaryHeap<(isize, Point)> = BinaryHeap::new();
-        let mut paths = Paths {
-            distance: Matrix::new(self.w, self.h, usize::max_value()),
-            paths: Matrix::new(self.w, self.h, vec![]),
-        };
+struct Routing {
+    /// Distance from the origin.
+    d: Matrix<Option<usize>>,
 
-        to_visit.push((0, p));
-        paths.distance[p] = 0;
-        paths.paths[p].push(vec![]); // 0-length path
+    /// Chosen destination
+    chosen: Option<Point>,
 
-        while let Some((queued_distance, ap)) = to_visit.pop() {
-            debug_assert!(queued_distance <= 0);
-            if (paths.distance[ap] as isize) < -queued_distance {
-                // Although we needed to revisit this point, we already have a
-                // shorter path.
-                continue;
-            }
-            let new_distance = paths.distance[ap] + 1;
-            // Propagate all equal-length paths through to neighbors.
-            // Keep a copy of my paths to avoid worries about aliasing
-            // `paths.paths` within the loop.
-            let ap_paths = paths.paths[ap].clone();
-            for old_path in ap_paths.iter() {
-                debug_assert_eq!(old_path.len(), paths.distance[ap]);
-            }
-            for np in self.empty_neighbors(ap).into_iter() {
-                for prev_path in ap_paths.iter() {
-                    // Check all already-known paths have the
-                    // expected length
-                    for old_path in paths.paths[np].iter() {
-                        debug_assert_eq!(old_path.len(), paths.distance[np]);
+    /// Next step to take from the origin: the lowest-ordered step towards
+    /// the chosen destination.
+    step: Option<Point>,
+}
+
+/// New approach on finding the best destination and first step towards it,
+/// given a set of interesting destinations (from which you can attack enemies)
+/// and a starting point.
+///
+/// Dests must be in sorted order.
+impl Routing {
+    pub fn new(m: &Map, origin: Point, dests: &[Point]) -> Routing {
+        // All the points numbered in the last round, and needing to be
+        // checked in the next round.
+        let mut last = vec![origin];
+        let mut d = Matrix::new(m.w, m.h, None);
+        let mut dist = 0;
+        let mut hit = false;
+        d[origin] = Some(0);
+        //
+        // First, flood-fill out from the starting point. The starting point is
+        // distance 0. Every empty immediate neighbor, not yet assigned a distance,
+        // is distance 1. Etc.
+        //
+        // Do this by remembering all the squares that were numbered in the previous
+        // round, and come back to visit all their empty, un-numbered neighbors.
+        //
+        // Stop after the complete round in which you assign a distance to any of
+        // the possible destinations, or if we run out of reachable empty
+        // squares to number.
+
+        // TODO: We could skip pre-calculation of potential move targets, and
+        // instead just wait to see when we arrive at a target of the given
+        // race.
+
+        // TODO: We could always visit potential destinations in point order,
+        // rather than grouped around `lp`, and therefore not need to keep
+        // a list of `dests` that are later filtered.
+
+        while !hit && !last.is_empty() {
+            let mut next = Vec::new();
+            dist += 1;
+            for lp in last.into_iter() {
+                for np in m.empty_neighbors(lp).into_iter() {
+                    if d[np].is_none() {
+                        d[np] = Some(dist);
+                        next.push(np);
+                        if dests.contains(&np) {
+                            hit = true;
+                        }
                     }
-                    if paths.distance[np] < new_distance {
-                        // Already have shorter paths
-                        continue;
-                    } else if paths.distance[np] > new_distance {
-                        // Already have _longer_ paths; discard them.
-                        paths.paths[np].clear();
-                    }
-                    paths.distance[np] = new_distance;
-                    let mut new_path = prev_path.clone();
-                    new_path.push(np);
-                    paths.paths[np].push(new_path);
-                    to_visit.push((-(new_distance as isize), np));
                 }
             }
+            last = next;
         }
-        paths
-    }
 
-    /// Find the best move target which is closest to `p` and in the event
-    /// of a tie the first in reading order. There might be no best move if
-    /// no targets are reachable.
-    pub fn best_destination(&self, paths: &Paths, race: Thing) -> Option<Point> {
-        let mut best_d = usize::max_value();
-        let mut best_p = None;
-        for ip in self.possible_move_targets(race) {
-            let d = paths.distance[ip];
-            if d < best_d {
-                best_d = d;
-                best_p = Some(ip);
+        // The first destination in order, for which we found a distance, is the
+        // chosen one.
+        //
+        // But it might be that none of the destinations are actually reachable
+        // from here.
+        let chosen = dests.iter().filter(|p| d[**p].is_some()).next().cloned();
+        if chosen.is_none() {
+            return Routing {
+                d,
+                chosen,
+                step: None,
+            };
+        }
+
+        // Now walk back from that chosen point towards the origin, taking at each
+        // step the smallest numbered point. Since we only ever numbered
+        // the minimum number of squares to reach the destination, any path
+        // we find must be a minimal path, and if we always prefer to go to
+        // the smallest-numbered neighbors we must arrive at the smallest
+        // destination.
+        let mut j = dist;
+        let mut backp = chosen.unwrap();
+        'backup: while j > 1 {
+            debug_assert_eq!(d[backp], Some(j));
+            for np in m.empty_neighbors(backp) {
+                if d[np] == Some(j - 1) {
+                    j -= 1;
+                    backp = np;
+                    continue 'backup;
+                }
             }
+            panic!("No backup step found from {:?}", backp);
         }
-        best_p
-    }
 
-    /// Find the first step from p: of all the first steps on equally shortest
-    /// paths, towards the destination,
-    /// the one that's first in reading order.
-    pub fn best_next_step(&self, paths: &Paths, dest: Point) -> Option<Point> {
-        for ip in paths.paths[dest].iter() {
-            debug_assert_eq!(ip.len(), paths.distance[dest]);
+        Routing {
+            d,
+            chosen,
+            step: Some(backp),
         }
-        paths.paths[dest]
-            .iter()
-            .map(|p| p.first().unwrap())
-            .cloned()
-            .min()
-    }
-}
-
-/// Map of shortests paths from one point, to all reachable points.
-struct Paths {
-    distance: Matrix<usize>,
-    paths: Matrix<Vec<Vec<Point>>>,
-}
-
-impl Paths {
-    pub fn can_reach(&self, p: Point) -> bool {
-        self.distance[p] < usize::max_value()
     }
 }
 
@@ -378,7 +383,7 @@ mod test {
     }
 
     #[test]
-    fn move_example() {
+    fn routing() {
         // Targets:      In range:     Reachable:    Nearest:      Chosen:
         // #######       #######       #######       #######       #######
         // #E..G.#       #E.?G?#       #E.@G.#       #E.!G.#       #E.+G.#
@@ -399,8 +404,9 @@ mod test {
             vec![point(2, 1), point(1, 2)]
         );
         // Around the goblins, a few squares
+        let pmt = m.possible_move_targets(Thing::Goblin);
         assert_eq!(
-            m.possible_move_targets(Thing::Goblin),
+            pmt,
             vec![
                 point(3, 1),
                 point(5, 1),
@@ -410,42 +416,30 @@ mod test {
                 point(3, 3)
             ]
         );
+        let r = Routing::new(&m, point(1, 1), &pmt);
 
-        // Calculate distance map from elf.
-        let paths = m.paths(point(1, 1));
-        assert_eq!(paths.distance[point(1, 1)], 0);
-        assert!(!paths.can_reach(point(0, 0))); // it's a wall
-        assert_eq!(paths.distance[point(2, 1)], 1);
-        assert_eq!(paths.distance[point(3, 1)], 2);
-        assert!(!paths.can_reach(point(4, 1))); // it's a goblin
-        assert!(!paths.can_reach(point(5, 1))); // it's a unreachable
-        assert_eq!(paths.distance[point(1, 2)], 1);
-        assert_eq!(paths.distance[point(2, 2)], 2);
-        assert_eq!(paths.distance[point(3, 2)], 3);
-        assert!(!paths.can_reach(point(4, 2))); // wall
-        assert!(!paths.can_reach(point(5, 2))); // unreachable
-        assert_eq!(paths.distance[point(1, 3)], 2);
-        assert!(!paths.can_reach(point(2, 3))); // goblin
-        assert_eq!(paths.distance[point(3, 3)], 4);
-        assert!(!paths.can_reach(point(4, 3))); // wall
-        assert!(!paths.can_reach(point(5, 3))); // goblin
+        assert_eq!(r.d[point(1, 1)], Some(0)); // the elf itself
+        assert_eq!(r.d[point(2, 1)], Some(1));
+        assert_eq!(r.d[point(3, 1)], Some(2));
 
-        // Points with two equal-length have them both stored.
-        assert_eq!(
-            paths.paths[(2, 2)],
-            vec![
-                vec![point(1, 2), point(2, 2)],
-                vec![point(2, 1), point(2, 2)]
-            ]
-        );
+        assert_eq!(r.d[point(1, 2)], Some(1));
+        assert_eq!(r.d[point(2, 2)], Some(2));
+        // This one shouldn't be calculated because it requires going further
+        // than the first destination.
+        assert_eq!(r.d[point(3, 2)], None);
 
-        // Find the best place to move to
-        let dest = m.best_destination(&paths, Thing::Goblin).unwrap();
-        assert_eq!(dest, point(3, 1));
+        assert_eq!(r.d[point(1, 3)], Some(2));
+
+        // The lowest-point destination is chosen.
+        assert_eq!(r.chosen, Some(point(3, 1)));
+
+        // The first step is towards it.
+        assert_eq!(r.step, Some(point(2, 1)));
     }
 
+    /// An example of routing where there are multiple paths
     #[test]
-    fn next_step_example() {
+    fn routing2() {
         let m = Map::from_string(
             "\
              #######\n\
@@ -454,10 +448,11 @@ mod test {
              #...G.#\n\
              #######\n",
         );
-        println!("calc paths");
-        let paths = m.paths(point(2, 1));
-        println!("calc dest");
-        let dest = m.best_destination(&paths, Thing::Goblin).unwrap();
-        assert_eq!(dest, point(4, 2));
+        let pmt = m.possible_move_targets(Thing::Goblin);
+        assert_eq!(pmt, vec![point(4, 2), point(3, 3), point(5, 3)]);
+
+        let r = Routing::new(&m, point(2, 1), &pmt);
+        assert_eq!(r.chosen, Some(point(4, 2)));
+        assert_eq!(r.step, Some(point(3, 1)));
     }
 }
