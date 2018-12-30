@@ -46,7 +46,7 @@ use self::Inst::*;
 impl Inst {
     pub fn apply(self, r: &[Reg; 4], args: &[Reg; 4]) -> [Reg; 4] {
         let [_, a, b, c] = *args;
-        let mut after = r.clone();
+        let mut after = *r;
         // Happily in Rust if you cast a bool to an int, it goes to 1 and 0.
         after[c] = match self {
             Muli => r[a] * b,
@@ -105,7 +105,7 @@ impl Sample {
                 break;
             }
             assert!(l1.starts_with("Before: ["));
-            assert!(l1.ends_with("]"));
+            assert!(l1.ends_with(']'));
             let before = parse_number_list(&l1[9..(l1.len() - 1)], ", ");
             assert_eq!(before.len(), 4);
 

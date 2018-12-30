@@ -36,7 +36,7 @@ impl Inst {
     pub fn apply(self, r: &[Reg; 4], args: &[Reg]) -> [Reg; 4] {
         debug_assert_eq!(args.len(), 4);
         let (a, b, c) = (args[1], args[2], args[3]);
-        let mut after = r.clone();
+        let mut after = *r;
         // Happily in Rust if you cast a bool to an int, it goes to 1 and 0.
         after[c] = match self {
             Muli => r[a] * b,
@@ -95,7 +95,7 @@ impl Sample {
                 break;
             }
             assert!(l1.starts_with("Before: ["));
-            assert!(l1.ends_with("]"));
+            assert!(l1.ends_with(']'));
             let before = parse_number_list(&l1[9..(l1.len() - 1)], ", ");
             assert_eq!(before.len(), 4);
 
@@ -184,7 +184,7 @@ impl Infer {
                 let unresolved: Vec<Inst> = insts
                     .iter()
                     .filter(|inst| !solved_inst.contains_key(inst))
-                    .map(|ri| *ri)
+                    .cloned()
                     .collect();
                 if unresolved.len() == 1 {
                     let inst = unresolved[0];

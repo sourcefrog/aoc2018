@@ -53,13 +53,13 @@ impl<T: Clone> Index<Point> for Matrix<T> {
 }
 
 impl<T: Clone> IndexMut<(usize, usize)> for Matrix<T> {
-    fn index_mut<'a>(&'a mut self, p: (usize, usize)) -> &'a mut T {
+    fn index_mut(&mut self, p: (usize, usize)) -> &mut T {
         &mut self.d[self.w * p.0 + p.1]
     }
 }
 
 impl<T: Clone> IndexMut<Point> for Matrix<T> {
-    fn index_mut<'a>(&'a mut self, p: Point) -> &'a mut T {
+    fn index_mut(&mut self, p: Point) -> &mut T {
         &mut self.d[self.w * p.y + p.x]
     }
 }
@@ -73,7 +73,7 @@ impl<T: Clone> FromRows<T> {
     pub fn add_row(&mut self, r: &[T]) {
         if self.d.is_empty() {
             // First row
-            assert!(r.len() > 0);
+            assert!(!r.is_empty());
             self.w = r.len();
             self.d.extend_from_slice(r);
         } else {
