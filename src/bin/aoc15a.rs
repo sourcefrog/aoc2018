@@ -17,16 +17,8 @@ pub fn main() {
         .unwrap()
         .read_to_string(&mut s)
         .unwrap();
-    let m = Map::from_string(&s);
-    for (p, c) in m.cs.iter() {
-        println!("({}, {}) => {:?}", p.x, p.y, c);
-
-        let r = Routing::new(&m, *p, c.race.enemy()).unwrap();
-        println!(
-            "  chosen=({}, {}), step=({}, {}), dist={}",
-            r.chosen.x, r.chosen.y, r.step.x, r.step.y, r.dist
-        );
-    }
+    let mut m = Map::from_string(&s);
+    println!("Result: {:?}", m.battle());
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -87,7 +79,7 @@ struct Map {
     w: usize,
     h: usize,
     cs: BTreeMap<Point, Creature>,
-    round: usize,
+    completed_rounds: usize,
 }
 
 impl Map {
@@ -117,7 +109,7 @@ impl Map {
             w: m.width(),
             h: m.height(),
             m,
-            round: 0,
+            completed_rounds: 0,
         }
     }
 
@@ -153,10 +145,9 @@ impl Map {
     /// the neighbor with
     /// the lowest hit points, and in the case of a tie the one first in reading
     /// order.
-    pub fn target(&mut self, ap: Point) -> Option<Point> {
+    pub fn target(&mut self, ap: Point, a_race: Thing) -> Option<Point> {
         let mut best_p: Option<Point> = None;
         let mut best_hp: usize = usize::max_value();
-        let a_race = self.creature_at(ap).unwrap().race;
         for p in self.neighbors(ap).into_iter() {
             if let Some(pc) = self.creature_at(p) {
                 if pc.race == a_race.enemy() && pc.hp < best_hp {
@@ -172,7 +163,7 @@ impl Map {
     /// maybe kill it. (It doesn't make any difference who's attacking it.)
     pub fn hurt(&mut self, tp: Point) {
         let mut target = self.creature_at_mut(tp).unwrap();
-        if target.hp < ATTACK_POWER {
+        if target.hp <= ATTACK_POWER {
             println!("kill {:?}", target);
             self.set_thing_at(tp, Thing::Empty);
             self.cs.remove(&tp);
@@ -225,7 +216,7 @@ impl Map {
     }
 
     pub fn render(&self) -> String {
-        let mut s = format!("Round: {}\n", self.round);
+        let mut s = format!("Round: {}\n", self.completed_rounds);
         for y in 0..self.h {
             for x in 0..self.w {
                 let p = point(x, y);
@@ -236,9 +227,16 @@ impl Map {
         s
     }
 
+    pub fn any_creatures(&self, race: Thing) -> bool {
+        self.cs.values().any(|c| c.race == race)
+    }
+
     /// One round of the simulation.
-    pub fn round(&mut self) {
-        self.round += 1;
+    ///
+    /// Returns false if, before the end of the round, any creature finds
+    /// that there are no more enemy creatures anywhere, and so the game is
+    /// over.
+    pub fn round(&mut self) -> bool {
         // For all creatures, in reading order:
         //
         // If the creature was killed since the round started, skip it.
@@ -251,23 +249,43 @@ impl Map {
         for mut cp in cps.into_iter() {
             let th = self.thing_at(cp);
             if !th.is_creature() {
-                continue;
+                continue; // maybe already killed
             }
-            if self.target(cp).is_none() {
+            if !self.any_creatures(th.enemy()) {
+                return false;
+            }
+            if self.target(cp, th).is_none() {
                 if let Some(r) = Routing::new(&self, cp, th.enemy()) {
+                    println!(
+                        "move {:?} from {:?} to {:?} towards {:?}, {} steps",
+                        th, cp, r.step, r.chosen, r.dist
+                    );
                     let newp = r.step;
                     self.move_creature(cp, newp);
                     cp = newp;
-                } else {
-                    // no neighboring enemy, and no way to move towards one:
-                    // end turn.
-                    continue;
                 }
             };
-            if let Some(tp) = self.target(cp) {
+            if let Some(tp) = self.target(cp, th) {
                 self.hurt(tp);
             }
         }
+        self.completed_rounds += 1;
+        true
+    }
+
+    // Play the whole battle until the end.
+    // Returns: number of *completed* rounds, total HP of survivors, and the
+    // product of the two.
+    pub fn battle(&mut self) -> (usize, usize, usize) {
+        while self.round() {
+            print!("{}", self.render());
+        }
+        let remain_hp: usize = self.cs.values().map(|c| c.hp).sum();
+        (
+            self.completed_rounds,
+            remain_hp,
+            self.completed_rounds * remain_hp,
+        )
     }
 }
 
@@ -314,6 +332,8 @@ impl Routing {
         // rather than grouped around `lp`, and therefore not need to keep
         // a list of `dests` that are later filtered.
 
+        println!("routing from {:?} looking for {:?}", origin, enemy);
+
         while ends.is_empty() && !last.is_empty() {
             let mut next = Vec::new();
             dist += 1;
@@ -321,6 +341,7 @@ impl Routing {
                 for np in m.neighbors(lp).into_iter() {
                     if m.thing_at(np) == enemy {
                         // lp neighbors an enemy; we could stop here.
+                        println!("found enemy at {:?} from {:?} after {:?}", np, lp, dist);
                         ends.push(lp);
                     } else if m.thing_at(np).is_empty() && d[np].is_none() {
                         // We could move to np along this path; let's see if
@@ -333,15 +354,13 @@ impl Routing {
             last = next;
         }
 
+        // Chosen destination is the first one, in order.
         if ends.is_empty() {
             // Filled as much of the map as we can, without finding any
             // reachable enemies. Let's stop.
             return None;
-        }
-
-        // Chosen destination is the first one, in order.
-        ends.sort();
-        let chosen = ends[0];
+        };
+        let chosen = *ends.iter().min().unwrap();
 
         // Now walk back from that chosen point towards the origin, taking at each
         // step the smallest numbered point. Since we only ever numbered
@@ -406,15 +425,21 @@ mod test {
              ...G.\n",
         );
         // First goblin can't reach anything
-        assert_eq!(m.target(point(0, 0)), None);
+        assert_eq!(m.target(point(0, 0), Thing::Goblin), None);
         // Second goblin should attack the elf.
         assert_eq!(
             m.creature_at(Point { x: 2, y: 1 }).unwrap().race,
             Thing::Goblin
         );
-        assert_eq!(m.target(Point { x: 2, y: 1 }), Some(Point { x: 2, y: 2 }));
+        assert_eq!(
+            m.target(Point { x: 2, y: 1 }, Thing::Goblin),
+            Some(Point { x: 2, y: 2 })
+        );
         // Elf should attack second goblin, because it's first in reading order.
-        assert_eq!(m.target(Point { x: 2, y: 2 }), Some(Point { x: 2, y: 1 }));
+        assert_eq!(
+            m.target(Point { x: 2, y: 2 }, Thing::Elf),
+            Some(Point { x: 2, y: 1 })
+        );
     }
 
     #[test]
@@ -436,7 +461,7 @@ mod test {
         // Elf should attack second goblin, because it's the first in reading
         // order that has the lowest HP (2).
         let elf_p = point(2, 2);
-        let tp = m.target(elf_p).unwrap();
+        let tp = m.target(elf_p, Thing::Elf).unwrap();
         assert_eq!(tp, point(3, 2));
 
         // Actually attack it.
@@ -514,11 +539,79 @@ mod test {
             m.round();
         }
         for _ in 29..46 {
-            m.round();
+            assert!(m.round());
         }
-        for _ in 46..=48 {
-            print!("{}", m.render());
-            m.round();
-        }
+        print!("{}", m.render());
+        assert!(m.round()); // 46
+        print!("{}", m.render());
+        assert!(!m.round()); // 47, the end
+        print!("{}", m.render());
+        assert!(!m.round()); // 48, nothing else changes
+    }
+
+    #[test]
+    fn battle() {
+        let mut m = Map::from_string(
+            "\
+             #######\n\
+             #.G...#\n\
+             #...EG#\n\
+             #.#.#G#\n\
+             #..G#E#\n\
+             #.....#\n\
+             #######\n\
+             ",
+        );
+        assert_eq!(m.battle(), (47, 590, 27730));
+    }
+
+    #[test]
+    fn battle2() {
+        let mut m = Map::from_string(
+            "\
+             #######\n\
+             #G..#E#\n\
+             #E#E.E#\n\
+             #G.##.#\n\
+             #...#E#\n\
+             #...E.#\n\
+             #######\n\
+             ",
+        );
+        assert_eq!(m.battle(), (37, 982, 36334));
+    }
+
+    #[test]
+    fn battle3() {
+        let mut m = Map::from_string(
+            "\
+             #######\n\
+             #.E...#\n\
+             #.#..G#\n\
+             #.###.#\n\
+             #E#G#G#\n\
+             #...#G#\n\
+             #######\n\
+             ",
+        );
+        assert_eq!(m.battle(), (54, 536, 28944));
+    }
+
+    #[test]
+    fn battle4() {
+        let mut m = Map::from_string(
+            "\
+             #########\n\
+             #G......#\n\
+             #.E.#...#\n\
+             #..##..G#\n\
+             #...##..#\n\
+             #...#...#\n\
+             #.G...G.#\n\
+             #.....G.#\n\
+             #########\n\
+             ",
+        );
+        assert_eq!(m.battle(), (20, 937, 18740));
     }
 }
