@@ -1,10 +1,18 @@
 pub mod matrix;
 pub use crate::matrix::Matrix;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
+use std::fmt;
+
+#[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct Point {
     pub y: usize,
     pub x: usize,
+}
+
+impl fmt::Debug for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "point({}, {})", self.x, self.y)
+    }
 }
 
 /// Shorthand to construct a point.

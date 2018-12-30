@@ -6,7 +6,7 @@ use std::io::Read;
 
 /// https://adventofcode.com/2018/day/15
 use aoc2018::matrix::Matrix;
-use aoc2018::Point;
+use aoc2018::{point, Point};
 
 const INITIAL_HP: usize = 200;
 const ATTACK_POWER: usize = 3;
@@ -17,7 +17,7 @@ pub fn main() {
         .unwrap()
         .read_to_string(&mut s)
         .unwrap();
-    let mut m = Map::from_string(&s);
+    let m = Map::from_string(&s);
     for (p, c) in m.cs.iter() {
         println!("({}, {}) => {:?}", p.x, p.y, c);
 
@@ -45,6 +45,15 @@ impl Thing {
             'E' => Thing::Elf,
             'G' => Thing::Goblin,
             other => panic!("unexpected character {:?}", other),
+        }
+    }
+
+    pub fn to_char(self) -> char {
+        match self {
+            Thing::Empty => '.',
+            Thing::Wall => '#',
+            Thing::Elf => 'E',
+            Thing::Goblin => 'G',
         }
     }
 
@@ -78,6 +87,7 @@ struct Map {
     w: usize,
     h: usize,
     cs: BTreeMap<Point, Creature>,
+    round: usize,
 }
 
 impl Map {
@@ -107,6 +117,7 @@ impl Map {
             w: m.width(),
             h: m.height(),
             m,
+            round: 0,
         }
     }
 
@@ -199,6 +210,64 @@ impl Map {
 
     fn set_thing_at(&mut self, p: Point, th: Thing) {
         self.m[p] = th
+    }
+
+    fn move_creature(&mut self, oldp: Point, newp: Point) {
+        debug_assert!(self.thing_at(newp).is_empty());
+        let mut c = self.cs.remove(&oldp).unwrap();
+        debug_assert!(c.race.is_creature());
+        debug_assert_eq!(c.p, oldp);
+        debug_assert!(c.hp > 0);
+        c.p = newp;
+        self.set_thing_at(newp, c.race);
+        self.set_thing_at(oldp, Thing::Empty);
+        self.cs.insert(newp, c);
+    }
+
+    pub fn render(&self) -> String {
+        let mut s = format!("Round: {}\n", self.round);
+        for y in 0..self.h {
+            for x in 0..self.w {
+                let p = point(x, y);
+                s.push(self.thing_at(p).to_char());
+            }
+            s.push('\n');
+        }
+        s
+    }
+
+    /// One round of the simulation.
+    pub fn round(&mut self) {
+        self.round += 1;
+        // For all creatures, in reading order:
+        //
+        // If the creature was killed since the round started, skip it.
+        //
+        // If they are not currently next to an enemy, plot a route and move
+        // towards one.
+        //
+        // If they are now next to an enemy, hurt it.
+        let cps: Vec<Point> = self.cs.keys().cloned().collect();
+        for mut cp in cps.into_iter() {
+            let th = self.thing_at(cp);
+            if !th.is_creature() {
+                continue;
+            }
+            if self.target(cp).is_none() {
+                if let Some(r) = Routing::new(&self, cp, th.enemy()) {
+                    let newp = r.step;
+                    self.move_creature(cp, newp);
+                    cp = newp;
+                } else {
+                    // no neighboring enemy, and no way to move towards one:
+                    // end turn.
+                    continue;
+                }
+            };
+            if let Some(tp) = self.target(cp) {
+                self.hurt(tp);
+            }
+        }
     }
 }
 
@@ -305,7 +374,6 @@ impl Routing {
 #[cfg(test)]
 mod test {
     use super::*;
-    use aoc2018::*;
 
     #[test]
     fn from_string() {
@@ -419,5 +487,38 @@ mod test {
         let r = Routing::new(&m, point(2, 1), Thing::Goblin).unwrap();
         assert_eq!(r.chosen, point(4, 2));
         assert_eq!(r.step, point(3, 1));
+    }
+
+    #[test]
+    fn full_example() {
+        let mut m = Map::from_string(
+            "\
+             #######\n\
+             #.G...#\n\
+             #...EG#\n\
+             #.#.#G#\n\
+             #..G#E#\n\
+             #.....#\n\
+             #######\n\
+             ",
+        );
+        for _ in 0..3 {
+            print!("{}", m.render());
+            m.round();
+        }
+        for _ in 3..23 {
+            m.round();
+        }
+        for _ in 23..=28 {
+            print!("{}", m.render());
+            m.round();
+        }
+        for _ in 29..46 {
+            m.round();
+        }
+        for _ in 46..=48 {
+            print!("{}", m.render());
+            m.round();
+        }
     }
 }
