@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 
@@ -25,17 +24,19 @@ pub fn main() {
 enum Thing {
     Empty,
     Wall,
-    Elf,
-    Goblin,
+    Elf(usize),
+    Goblin(usize),
 }
+
+use self::Thing::*;
 
 impl Thing {
     pub fn from_char(ch: char) -> Thing {
         match ch {
             '.' => Thing::Empty,
             '#' => Thing::Wall,
-            'E' => Thing::Elf,
-            'G' => Thing::Goblin,
+            'E' => Thing::Elf(INITIAL_HP),
+            'G' => Thing::Goblin(INITIAL_HP),
             other => panic!("unexpected character {:?}", other),
         }
     }
@@ -44,17 +45,17 @@ impl Thing {
         match self {
             Thing::Empty => '.',
             Thing::Wall => '#',
-            Thing::Elf => 'E',
-            Thing::Goblin => 'G',
+            Thing::Elf(_) => 'E',
+            Thing::Goblin(_) => 'G',
         }
     }
 
     /// The enemy race for creatures (only).
-    pub fn enemy(&self) -> Thing {
-        match self {
-            Thing::Goblin => Thing::Elf,
-            Thing::Elf => Thing::Goblin,
-            _ => panic!("not a creature: {:?}", self),
+    pub fn is_enemy(&self, other: &Thing) -> bool {
+        match (self, other) {
+            (Thing::Goblin(_), Thing::Elf(_)) => true,
+            (Thing::Elf(_), Thing::Goblin(_)) => true,
+            _ => false,
         }
     }
 
@@ -62,54 +63,81 @@ impl Thing {
         self == Thing::Empty
     }
 
-    pub fn is_creature(self) -> bool {
-        self == Thing::Elf || self == Thing::Goblin
+    pub fn is_creature(&self) -> bool {
+        match self {
+            Thing::Elf(_) => true,
+            Thing::Goblin(_) => true,
+            _ => false,
+        }
     }
-}
 
-#[derive(Debug, PartialEq, Eq)]
-struct Creature {
-    p: Point,
-    race: Thing,
-    hp: usize,
+    pub fn is_goblin(&self) -> bool {
+        match self {
+            Goblin(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_elf(&self) -> bool {
+        match self {
+            Elf(_) => true,
+            _ => false,
+        }
+    }
+    pub fn creature_hp(&self) -> Option<usize> {
+        match self {
+            Elf(hp) | Goblin(hp) => Some(*hp),
+            _ => None,
+        }
+    }
+    pub fn hurt(&self) -> Thing {
+        let hp = self.creature_hp().unwrap();
+        if hp <= ATTACK_POWER {
+            println!("kill {:?}", self);
+            Empty
+        } else {
+            match self {
+                Elf(_) => Elf(hp - ATTACK_POWER),
+                Goblin(_) => Goblin(hp - ATTACK_POWER),
+                _ => panic!(),
+            }
+        }
+    }
 }
 
 struct Map {
     m: Matrix<Thing>,
     w: usize,
     h: usize,
-    cs: BTreeMap<Point, Creature>,
     completed_rounds: usize,
+    n_elf: usize,
+    n_goblin: usize,
 }
 
 impl Map {
     pub fn from_string(s: &str) -> Map {
         let mut mb = Matrix::<Thing>::from_rows();
-        let mut cs = BTreeMap::<Point, Creature>::new();
-        for (y, l) in s.lines().enumerate() {
+        let mut n_elf = 0;
+        let mut n_goblin = 0;
+        for l in s.lines() {
             let r: Vec<Thing> = l.chars().map(Thing::from_char).collect();
-            for (x, &th) in r.iter().enumerate() {
-                let p = Point { y, x };
-                if th.is_creature() {
-                    cs.insert(
-                        p,
-                        Creature {
-                            p,
-                            race: th,
-                            hp: INITIAL_HP,
-                        },
-                    );
+            mb.add_row(&r);
+            for i in r {
+                match i {
+                    Elf(_) => { n_elf += 1; },
+                    Goblin(_) => { n_goblin += 1; },
+                    _ => (),
                 }
             }
-            mb.add_row(&r);
         }
         let m = mb.finish();
         Map {
-            cs,
             w: m.width(),
             h: m.height(),
             m,
             completed_rounds: 0,
+            n_elf,
+            n_goblin,
         }
     }
 
@@ -145,14 +173,15 @@ impl Map {
     /// the neighbor with
     /// the lowest hit points, and in the case of a tie the one first in reading
     /// order.
-    pub fn target(&mut self, ap: Point, a_race: Thing) -> Option<Point> {
+    pub fn target(&mut self, ap: Point, attacker: &Thing) -> Option<Point> {
         let mut best_p: Option<Point> = None;
         let mut best_hp: usize = usize::max_value();
         for p in self.neighbors(ap).into_iter() {
-            if let Some(pc) = self.creature_at(p) {
-                if pc.race == a_race.enemy() && pc.hp < best_hp {
+            let thingp = self.thing_at(p);
+            if let Some(hp) = thingp.creature_hp() {
+                if thingp.is_enemy(attacker) && hp < best_hp {
                     best_p = Some(p);
-                    best_hp = pc.hp;
+                    best_hp = hp
                 }
             }
         }
@@ -162,41 +191,26 @@ impl Map {
     /// Hurt the creature at `tp` and
     /// maybe kill it. (It doesn't make any difference who's attacking it.)
     pub fn hurt(&mut self, tp: Point) {
-        let mut target = self.creature_at_mut(tp).unwrap();
-        if target.hp <= ATTACK_POWER {
-            println!("kill {:?}", target);
-            self.set_thing_at(tp, Thing::Empty);
-            self.cs.remove(&tp);
-        } else {
-            target.hp -= ATTACK_POWER;
+        let old_thing = self.thing_at(tp);
+        let new_thing = old_thing.hurt();
+        if new_thing.is_empty() {
+            if old_thing.is_elf() {
+                self.n_elf -= 1;
+            } else if old_thing.is_goblin() {
+                self.n_goblin -= 1;
+            } else {
+                panic!();
+            }
         }
-    }
-
-    /// Return the creature at P, if any.
-    pub fn creature_at_mut(&mut self, p: Point) -> Option<&mut Creature> {
-        let th = self.thing_at(p);
-        let r = self.cs.get_mut(&p);
-        if let Some(ref c) = r {
-            debug_assert_eq!(c.race, th);
-        } else {
-            debug_assert!(!th.is_creature());
-        }
-        r
-    }
-
-    pub fn creature_at(&self, p: Point) -> Option<&Creature> {
-        let r = self.cs.get(&p);
-        let th = self.thing_at(p);
-        if let Some(ref c) = r {
-            debug_assert_eq!(c.race, th);
-        } else {
-            debug_assert!(!th.is_creature());
-        }
-        r
+        self.set_thing_at(tp, new_thing);
     }
 
     pub fn thing_at(&self, p: Point) -> Thing {
         self.m[p]
+    }
+
+    pub fn thing_at_mut(&mut self, p: Point) -> &mut Thing {
+        &mut self.m[p]
     }
 
     fn set_thing_at(&mut self, p: Point, th: Thing) {
@@ -205,14 +219,10 @@ impl Map {
 
     fn move_creature(&mut self, oldp: Point, newp: Point) {
         debug_assert!(self.thing_at(newp).is_empty());
-        let mut c = self.cs.remove(&oldp).unwrap();
-        debug_assert!(c.race.is_creature());
-        debug_assert_eq!(c.p, oldp);
-        debug_assert!(c.hp > 0);
-        c.p = newp;
-        self.set_thing_at(newp, c.race);
+        let actor = self.thing_at(oldp);
+        debug_assert!(actor.is_creature());
+        self.set_thing_at(newp, actor);
         self.set_thing_at(oldp, Thing::Empty);
-        self.cs.insert(newp, c);
     }
 
     pub fn render(&self) -> String {
@@ -227,8 +237,8 @@ impl Map {
         s
     }
 
-    pub fn any_creatures(&self, race: Thing) -> bool {
-        self.cs.values().any(|c| c.race == race)
+    fn annihilated(&self) -> bool {
+        self.n_elf == 0 || self.n_goblin == 0
     }
 
     /// One round of the simulation.
@@ -245,28 +255,39 @@ impl Map {
         // towards one.
         //
         // If they are now next to an enemy, hurt it.
-        let cps: Vec<Point> = self.cs.keys().cloned().collect();
-        for mut cp in cps.into_iter() {
-            let th = self.thing_at(cp);
-            if !th.is_creature() {
-                continue; // maybe already killed
-            }
-            if !self.any_creatures(th.enemy()) {
-                return false;
-            }
-            if self.target(cp, th).is_none() {
-                if let Some(r) = Routing::new(&self, cp, th.enemy()) {
+        let mut recently_moved: Vec<Point> = Vec::new();
+        for y in 0..self.h {
+            for x in 0..self.w {
+                let cp = point(x, y);
+                let th = self.thing_at(cp);
+                if !th.is_creature() {
+                    continue;
+                }
+                if recently_moved.contains(&cp) {
+                    // Creature moved into this square on this round; it doesn't
+                    // get to go again.
+                    continue;
+                }
+                if self.annihilated() {
+                    // TODO: Maybe a bit slow to scan the whole map again, for every creature, on every move. We could keep a count per race.
+                    return false;
+                }
+                if let Some(tp) = self.target(cp, &th) {
+                    // Attack immediately without needing to move
+                    self.hurt(tp);
+                } else if let Some(r) = Routing::new(&self, cp) {
+                    // Move, then try to attack.
                     println!(
                         "move {:?} from {:?} to {:?} towards {:?}, {} steps",
                         th, cp, r.step, r.chosen, r.dist
                     );
                     let newp = r.step;
                     self.move_creature(cp, newp);
-                    cp = newp;
+                    recently_moved.push(newp);
+                    if let Some(tp) = self.target(newp, &th) {
+                        self.hurt(tp);
+                    }
                 }
-            };
-            if let Some(tp) = self.target(cp, th) {
-                self.hurt(tp);
             }
         }
         self.completed_rounds += 1;
@@ -280,7 +301,12 @@ impl Map {
         while self.round() {
             print!("{}", self.render());
         }
-        let remain_hp: usize = self.cs.values().map(|c| c.hp).sum();
+        let mut remain_hp = 0;
+        for y in 0..self.h {
+            for x in 0..self.w {
+                remain_hp += self.thing_at(point(x, y)).creature_hp().unwrap_or(0)
+            }
+        }
         (
             self.completed_rounds,
             remain_hp,
@@ -307,12 +333,14 @@ struct Routing {
 ///
 /// Dests must be in sorted order.
 impl Routing {
-    pub fn new(m: &Map, origin: Point, enemy: Thing) -> Option<Routing> {
+    pub fn new(m: &Map, origin: Point) -> Option<Routing> {
         // All the points numbered in the last round, and needing to be
         // checked in the next round.
         let mut last = vec![origin];
         let mut d = Matrix::new(m.w, m.h, None);
         let mut dist = 0;
+        let actor = m.thing_at(origin);
+        assert!(actor.is_creature());
         // Points neighboring an enemy.
         let mut ends = Vec::new();
         d[origin] = Some(0);
@@ -332,14 +360,14 @@ impl Routing {
         // rather than grouped around `lp`, and therefore not need to keep
         // a list of `dests` that are later filtered.
 
-        println!("routing from {:?} looking for {:?}", origin, enemy);
+        println!("routing from {:?} at {:?}", actor, origin);
 
         while ends.is_empty() && !last.is_empty() {
             let mut next = Vec::new();
             dist += 1;
             for lp in last.into_iter() {
                 for np in m.neighbors(lp).into_iter() {
-                    if m.thing_at(np) == enemy {
+                    if actor.is_enemy(&m.thing_at(np)) {
                         // lp neighbors an enemy; we could stop here.
                         println!("found enemy at {:?} from {:?} after {:?}", np, lp, dist);
                         ends.push(lp);
@@ -381,7 +409,6 @@ impl Routing {
             }
             panic!("No backup step found from {:?}", backp);
         }
-
         Some(Routing {
             chosen,
             step: backp,
@@ -404,8 +431,6 @@ mod test {
              #.G.E.#\n\
              #######\n",
         );
-        assert_eq!(m.cs.len(), 7);
-
         assert_eq!(
             m.neighbors(point(0, 0)),
             vec![Point { x: 1, y: 0 }, Point { x: 0, y: 1 }]
@@ -425,19 +450,16 @@ mod test {
              ...G.\n",
         );
         // First goblin can't reach anything
-        assert_eq!(m.target(point(0, 0), Thing::Goblin), None);
+        assert_eq!(m.target(point(0, 0), &Goblin(200)), None);
         // Second goblin should attack the elf.
+        assert!(m.thing_at(Point { x: 2, y: 1 }).is_goblin());
         assert_eq!(
-            m.creature_at(Point { x: 2, y: 1 }).unwrap().race,
-            Thing::Goblin
-        );
-        assert_eq!(
-            m.target(Point { x: 2, y: 1 }, Thing::Goblin),
+            m.target(Point { x: 2, y: 1 }, &Goblin(200)),
             Some(Point { x: 2, y: 2 })
         );
         // Elf should attack second goblin, because it's first in reading order.
         assert_eq!(
-            m.target(Point { x: 2, y: 2 }, Thing::Elf),
+            m.target(Point { x: 2, y: 2 }, &Elf(200)),
             Some(Point { x: 2, y: 1 })
         );
     }
@@ -452,25 +474,24 @@ mod test {
              ...G.\n",
         );
         // Tweak the HP to match the example
-        m.creature_at_mut(point(0, 0)).unwrap().hp = 9;
-        m.creature_at_mut(point(2, 1)).unwrap().hp = 4;
-        m.creature_at_mut(point(3, 2)).unwrap().hp = 2;
-        m.creature_at_mut(point(2, 3)).unwrap().hp = 2;
-        m.creature_at_mut(point(3, 4)).unwrap().hp = 1;
+        m.set_thing_at(point(0, 0), Goblin(9));
+        m.set_thing_at(point(2, 1), Goblin(4));
+        m.set_thing_at(point(3, 2), Goblin(2));
+        m.set_thing_at(point(2, 3), Goblin(2));
+        m.set_thing_at(point(3, 4), Goblin(1));
 
         // Elf should attack second goblin, because it's the first in reading
         // order that has the lowest HP (2).
         let elf_p = point(2, 2);
-        let tp = m.target(elf_p, Thing::Elf).unwrap();
+        let tp = m.target(elf_p, &Elf(200)).unwrap();
         assert_eq!(tp, point(3, 2));
 
         // Actually attack it.
         m.hurt(tp);
         // Goblin on row 2 should have been killed.
-        assert_eq!(m.thing_at(point(3, 2)), Thing::Empty);
-        assert_eq!(m.creature_at(point(3, 2)), None);
+        assert!(m.thing_at(point(3, 2)).is_empty());
         // Elf is still there.
-        assert_eq!(m.creature_at(point(2, 2)).unwrap().race, Thing::Elf);
+        assert!(m.thing_at(point(2, 2)).is_elf());
     }
 
     #[test]
@@ -489,7 +510,7 @@ mod test {
              #.G.#G#\n\
              #######\n",
         );
-        let r = Routing::new(&m, point(1, 1), Thing::Goblin).unwrap();
+        let r = Routing::new(&m, point(1, 1)).unwrap();
 
         // The lowest-point destination is chosen.
         assert_eq!(r.chosen, point(3, 1));
@@ -509,7 +530,7 @@ mod test {
              #...G.#\n\
              #######\n",
         );
-        let r = Routing::new(&m, point(2, 1), Thing::Goblin).unwrap();
+        let r = Routing::new(&m, point(2, 1)).unwrap();
         assert_eq!(r.chosen, point(4, 2));
         assert_eq!(r.step, point(3, 1));
     }
