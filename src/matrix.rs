@@ -54,12 +54,16 @@ impl<T: Clone> Index<Point> for Matrix<T> {
 
 impl<T: Clone> IndexMut<(usize, usize)> for Matrix<T> {
     fn index_mut(&mut self, p: (usize, usize)) -> &mut T {
+        assert!(p.0 < self.h);
+        assert!(p.1 < self.w);
         &mut self.d[self.w * p.0 + p.1]
     }
 }
 
 impl<T: Clone> IndexMut<Point> for Matrix<T> {
     fn index_mut(&mut self, p: Point) -> &mut T {
+        assert!(p.x < self.w, "{:?} too wide for {}", p, self.w);
+        assert!(p.y < self.h);
         &mut self.d[self.w * p.y + p.x]
     }
 }
