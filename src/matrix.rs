@@ -36,6 +36,11 @@ impl<T: Clone> Matrix<T> {
     pub fn height(&self) -> usize {
         self.h
     }
+
+    /// Return all values in row,col order.
+    pub fn values(&self) -> std::slice::Iter<'_, T> {
+        self.d.iter()
+    }
 }
 
 impl<T: Clone> Index<(usize, usize)> for Matrix<T> {
