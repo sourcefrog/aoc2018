@@ -4,6 +4,9 @@ use std::ops::RangeInclusive;
 
 use regex::Regex;
 
+use aoc2018::Matrix;
+use aoc2018::{point, Point};
+
 // Read the input lines and draw into a matrix. Maybe pre-scan to work out the
 // maximum dimensions.
 //
@@ -22,6 +25,7 @@ enum Thing {
     Water,
     Damp,
 }
+use self::Thing::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Line {
@@ -51,24 +55,88 @@ impl Line {
         v
     }
 
+    fn x_range(ls: &[Line]) -> RangeInclusive<usize> {
+        let xmin = ls
+            .iter()
+            .map(|l| match l {
+                Line::Horizontal { x1, .. } => x1,
+                Line::Vertical { x, .. } => x,
+            })
+            .min()
+            .unwrap();
+        let xmax = ls
+            .iter()
+            .map(|l| match l {
+                Line::Horizontal { x2, .. } => x2,
+                Line::Vertical { x, .. } => x,
+            })
+            .max()
+            .unwrap();
+        RangeInclusive::new(*xmin, *xmax)
+    }
+
     fn y_range(ls: &[Line]) -> RangeInclusive<usize> {
-        let ymin = ls.iter().map(|l| match l {
-            Line::Vertical { y1, .. } => y1,
-            Line::Horizontal { y, .. } => y,
-        }).min().unwrap();
-        let ymax = ls.iter().map(|l| match l {
-            Line::Vertical { y2, .. } => y2,
-            Line::Horizontal { y, .. } => y,
-        }).max().unwrap();
+        let ymin = ls
+            .iter()
+            .map(|l| match l {
+                Line::Vertical { y1, .. } => y1,
+                Line::Horizontal { y, .. } => y,
+            })
+            .min()
+            .unwrap();
+        let ymax = ls
+            .iter()
+            .map(|l| match l {
+                Line::Vertical { y2, .. } => y2,
+                Line::Horizontal { y, .. } => y,
+            })
+            .max()
+            .unwrap();
         RangeInclusive::new(*ymin, *ymax)
+    }
+}
+
+pub struct Map {
+    m: Matrix<Thing>,
+    drip: Vec<Point>,
+}
+
+impl Map {
+    fn from_lines(ls: &[Line]) -> Map {
+        let xr = Line::x_range(ls);
+        let yr = Line::y_range(ls);
+        // println!("Create matrix for xr={:?} yr={:?}", xr, yr);
+        let mut m = Matrix::new(*xr.end() + 1, *yr.end() + 1, Sand);
+        for l in ls.iter() {
+            match *l {
+                Line::Vertical { x, y1, y2 } => {
+                    for y in y1..=y2 {
+                        m[point(x, y)] = Clay;
+                    }
+                }
+                Line::Horizontal { x1, x2, y } => {
+                    for x in x1..=x2 {
+                        m[point(x, y)] = Clay;
+                    }
+                }
+            }
+        }
+        Map {
+            m,
+            drip: vec![point(500, 0)],
+        }
     }
 }
 
 pub fn solve() {
     use std::io::Read;
     let mut s = String::new();
-    std::fs::File::open("input/input17.txt").unwrap().read_to_string(&mut s).unwrap();
-    let _lines = Line::parse_lines(&s);
+    std::fs::File::open("input/input17.txt")
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
+    let lines = Line::parse_lines(&s);
+    let _map = Map::from_lines(&lines);
 }
 
 pub fn main() {
@@ -103,5 +171,9 @@ y=13, x=498..504
             }
         );
         assert_eq!(Line::y_range(&ls), RangeInclusive::new(1, 13));
+
+        let map = Map::from_lines(&ls);
+        assert_eq!(map.m[point(495, 2)], Clay);
+        assert_eq!(map.m[point(495, 7)], Clay);
     }
 }
