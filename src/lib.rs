@@ -19,3 +19,21 @@ impl fmt::Debug for Point {
 pub fn point(x: usize, y: usize) -> Point {
     Point { x, y }
 }
+
+impl Point {
+    pub fn down(&self) -> Point {
+        point(self.x, self.y.checked_add(1).unwrap())
+    }
+
+    pub fn left(&self) -> Point {
+        point(self.x.checked_sub(1).unwrap(), self.y)
+    }
+
+    pub fn right(&self) -> Point {
+        point(self.x.checked_add(1).unwrap(), self.y)
+    }
+
+    pub fn up(&self) -> Point {
+        point(self.x, self.y.checked_sub(1).unwrap())
+    }
+}
