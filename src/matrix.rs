@@ -3,9 +3,9 @@
 /// Matrices are indexed by (row, column) coordinates.
 use std::ops::{Index, IndexMut};
 
-use crate::Point;
+use crate::{point, Point};
 
-#[derive(Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Matrix<T> {
     w: usize,
     h: usize,
@@ -40,6 +40,40 @@ impl<T: Clone> Matrix<T> {
     /// Return all values in row,col order.
     pub fn values(&self) -> std::slice::Iter<'_, T> {
         self.d.iter()
+    }
+
+    /// Return a vec of all present 8-way neighbors.
+    pub fn neighbor8_values(&self, p: Point) -> Vec<T> {
+        let mut v: Vec<T> = Vec::with_capacity(8);
+        if p.y > 0 {
+            if p.x > 0 {
+                v.push(self[p.left().up()].clone())
+            }
+            v.push(self[p.up()].clone());
+            if p.x < self.w - 1 {
+                v.push(self[p.right().up()].clone())
+            }
+        }
+        if p.x > 0 {
+            v.push(self[p.left()].clone())
+        }
+        if p.x < self.w - 1 {
+            v.push(self[p.right()].clone())
+        }
+        if p.y < self.h - 1 {
+            if p.x > 0 {
+                v.push(self[p.left().down()].clone())
+            }
+            v.push(self[p.down()].clone());
+            if p.x < self.w - 1 {
+                v.push(self[p.right().down()].clone())
+            }
+        }
+        v
+    }
+
+    pub fn iter_points<'a>(&'a self) -> Box<Iterator<Item = Point> + 'a> {
+        Box::new((0..self.h).flat_map(move |y| (0..self.w).map(move |x| point(x, y))))
     }
 }
 
