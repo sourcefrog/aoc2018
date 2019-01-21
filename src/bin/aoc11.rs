@@ -58,8 +58,8 @@ impl Map {
 
     pub fn squaresum(&self, c: (usize, usize), sqsz: usize) -> i32 {
         let mut s: i32 = 0;
-        for x in c.0..(c.0+sqsz) {
-            for y in c.1..(c.1+sqsz) {
+        for x in c.0..(c.0 + sqsz) {
+            for y in c.1..(c.1 + sqsz) {
                 s += self.get((x, y));
             }
         }
@@ -70,8 +70,8 @@ impl Map {
         let mut best_power: i32 = i32::min_value();
         let mut best_point: (usize, usize) = (0, 0);
 
-        for x in 1..=(SIZE-sqsz) {
-            for y in 1..=(SIZE-sqsz) {
+        for x in 1..=(SIZE - sqsz) {
+            for y in 1..=(SIZE - sqsz) {
                 let p = (x, y);
                 let pwr = self.squaresum(p, sqsz);
                 if pwr > best_power {
@@ -88,8 +88,8 @@ impl Map {
         let mut best_power = i32::min_value();
         let mut best_size = 1;
         for sqsz in 1..=SIZE {
-            for x in 1..=(SIZE-sqsz) {
-                for y in 1..=(SIZE-sqsz) {
+            for x in 1..=(SIZE - sqsz) {
+                for y in 1..=(SIZE - sqsz) {
                     let p = (x, y);
                     let pwr = self.squaresum(p, sqsz);
                     if pwr > best_power {
@@ -105,7 +105,7 @@ impl Map {
 }
 
 #[cfg(test)]
-mod test{
+mod test {
     use super::*;
 
     #[test]

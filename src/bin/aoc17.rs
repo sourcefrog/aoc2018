@@ -47,7 +47,7 @@ impl Thing {
         match self {
             Clay => '#',
             Sand => '.',
-            Damp => '|', 
+            Damp => '|',
             Water => '~',
         }
     }
@@ -214,7 +214,7 @@ impl Map {
                 // let's pour in more water and see if it will spread to the sides.
                 println!("drip into damp at {:?}", p);
             }
-            Water => { 
+            Water => {
                 // drips into water, but probably nothing to do here
                 println!("drip into water at {:?}", p);
             }
@@ -223,7 +223,7 @@ impl Map {
     }
 
     /// Spread water horizontally from `drp`, both left and right, until either reaching
-    /// clay that will hold it to the side, or finding sand/dampness below where it can 
+    /// clay that will hold it to the side, or finding sand/dampness below where it can
     /// leak out. If it's enclosed on both sides and below, fill this with water, otherwise
     /// with damp sand. And, if it can leak from either or both sides, create a new drip from
     /// there.
@@ -234,7 +234,7 @@ impl Map {
         assert!(self.m[drp] != Clay);
         loop {
             if self.m[pl] == Clay {
-                // found a wall; water or dampness fills to pl 
+                // found a wall; water or dampness fills to pl
                 println!("found left wall of {:?} at {:?}", drp, pl);
                 pl = pl.right();
                 leak_left = false;
@@ -252,7 +252,7 @@ impl Map {
         let mut leak_right = true;
         while pr.x <= self.x_max {
             if self.m[pr] == Clay {
-                // found a wall; water or dampness fills to pr 
+                // found a wall; water or dampness fills to pr
                 println!("found right wall of {:?} at {:?}", drp, pr);
                 pr = pr.left();
                 leak_right = false;
@@ -299,7 +299,7 @@ impl Map {
     fn render(&self) -> String {
         let mut s = String::new();
         for y in 0..=self.y_max {
-            for x in (self.x_min-1)..=(self.x_max+1) {
+            for x in (self.x_min - 1)..=(self.x_max + 1) {
                 s.push(self.m[point(x, y)].to_char());
             }
             s.push('\n')
@@ -310,8 +310,8 @@ impl Map {
 
 /// Solve the main puzzle.
 pub fn solve_main_input() -> (usize, usize) {
-    use std::io::{Read, Write};
     use std::fs::File;
+    use std::io::{Read, Write};
     let mut s = String::new();
     File::open("input/input17.txt")
         .unwrap()

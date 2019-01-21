@@ -1,5 +1,4 @@
 /// https://adventofcode.com/2018/day/5
-
 use std::io;
 use std::io::prelude::*;
 use std::iter::Iterator;

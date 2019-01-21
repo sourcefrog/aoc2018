@@ -124,8 +124,12 @@ impl Map {
             mb.add_row(&r);
             for i in r {
                 match i {
-                    Elf(_) => { n_elf += 1; },
-                    Goblin(_) => { n_goblin += 1; },
+                    Elf(_) => {
+                        n_elf += 1;
+                    }
+                    Goblin(_) => {
+                        n_goblin += 1;
+                    }
                     _ => (),
                 }
             }

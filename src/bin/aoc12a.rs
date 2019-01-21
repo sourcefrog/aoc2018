@@ -16,7 +16,10 @@ use std::rc::Rc;
 
 pub fn main() {
     let mut s = String::new();
-    File::open("input/input12.txt").unwrap().read_to_string(&mut s).unwrap();
+    File::open("input/input12.txt")
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
     let mut p = Pots::from_string(&s);
     for _i in 0..20 {
         p = p.step();

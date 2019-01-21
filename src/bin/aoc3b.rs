@@ -17,7 +17,10 @@ pub fn main() {
         .map(Result::unwrap)
         .map(|s| Claim::from_string(&s))
         .collect::<Vec<_>>();
-    println!("square with no overlap: {}", find_no_overlaps(&cls).unwrap());
+    println!(
+        "square with no overlap: {}",
+        find_no_overlaps(&cls).unwrap()
+    );
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
@@ -118,7 +121,10 @@ mod test {
 
     #[test]
     fn test_overlaps_one_claim() {
-        assert_eq!(find_no_overlaps(&[Claim::from_string("#1 @ 1,3: 4x4"),]), Some(1));
+        assert_eq!(
+            find_no_overlaps(&[Claim::from_string("#1 @ 1,3: 4x4"),]),
+            Some(1)
+        );
     }
 
     #[test]

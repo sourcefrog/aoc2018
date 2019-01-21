@@ -1,14 +1,19 @@
 /// https://adventofcode.com/2018/day/9
-
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
 pub fn main() {
     // 432 players; last marble is worth 71019 points
-    println!("High score {}", Circle::new(432).play_until(71019).high_score());
+    println!(
+        "High score {}",
+        Circle::new(432).play_until(71019).high_score()
+    );
 
     // Part B
-    println!("High score {}", Circle::new(432).play_until(71019 * 100).high_score());
+    println!(
+        "High score {}",
+        Circle::new(432).play_until(71019 * 100).high_score()
+    );
 }
 
 /// The marbles in a circle, each represented by its unique number, starting
@@ -125,7 +130,7 @@ impl Circle {
 }
 
 impl Debug for Circle {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result<> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let top = self.top();
         let mut i = top;
         loop {
@@ -176,7 +181,6 @@ mod test {
         assert_eq!(c.scores, vec![0, 0, 0, 0, 32, 0, 0, 0, 0]);
         assert_eq!(c.high_score(), 32);
     }
-
 
     #[test]
     fn try_1618() {

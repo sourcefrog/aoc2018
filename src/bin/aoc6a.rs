@@ -1,5 +1,5 @@
+use std::collections::HashMap;
 /// https://adventofcode.com/2018/day/6
-
 // Read the list of coordinates; assign each an index.
 // Make a map and insert the central coordinates as 0 distance from
 // themselves.
@@ -23,9 +23,7 @@
 //
 // Finally, count which landing point has the most squares and hasn't been
 // eliminated.
-
 use std::collections::HashSet;
-use std::collections::HashMap;
 use std::fmt;
 use std::io;
 use std::io::prelude::*;
@@ -74,19 +72,31 @@ impl Point {
     }
 
     fn up(&self) -> Point {
-        Point{x: self.x, y: self.y-1}
+        Point {
+            x: self.x,
+            y: self.y - 1,
+        }
     }
 
     fn down(&self) -> Point {
-        Point{x: self.x, y: self.y+1}
+        Point {
+            x: self.x,
+            y: self.y + 1,
+        }
     }
 
     fn left(&self) -> Point {
-        Point{x: self.x-1, y: self.y}
+        Point {
+            x: self.x - 1,
+            y: self.y,
+        }
     }
 
     fn right(&self) -> Point {
-        Point{x: self.x+1, y: self.y}
+        Point {
+            x: self.x + 1,
+            y: self.y,
+        }
     }
 }
 
@@ -101,8 +111,10 @@ impl Map {
 
     /// Make a new map that will fit all these points
     pub fn from_points(points: &[Point]) -> Map {
-        let mut m = Map::new(points.iter().map(|p| p.x).max().unwrap() + 2,
-            points.iter().map(|p| p.y).max().unwrap() + 2);
+        let mut m = Map::new(
+            points.iter().map(|p| p.x).max().unwrap() + 2,
+            points.iter().map(|p| p.y).max().unwrap() + 2,
+        );
         for (i, p) in points.iter().enumerate() {
             m.set(p, Color::One(i as Landing));
         }
@@ -141,11 +153,14 @@ impl Map {
         let mut new = Map::new(self.w, self.h);
         for y in 0..self.h {
             for x in 0..self.w {
-                let p = Point{x, y};
-                new.set(&p, match self.get(&p) {
-                    Color::Unknown => self.grow_one(&p),
-                    c => c,
-                });
+                let p = Point { x, y };
+                new.set(
+                    &p,
+                    match self.get(&p) {
+                        Color::Unknown => self.grow_one(&p),
+                        c => c,
+                    },
+                );
             }
         }
         new
@@ -206,12 +221,12 @@ impl Map {
             }
         }
         for x in 0..self.w {
-            g(self, &mut e, &Point{x, y: 0});
-            g(self, &mut e, &Point{x, y: self.h-1});
+            g(self, &mut e, &Point { x, y: 0 });
+            g(self, &mut e, &Point { x, y: self.h - 1 });
         }
         for y in 0..self.h {
-            g(self, &mut e, &Point{x: 0, y});
-            g(self, &mut e, &Point{x: self.w-1, y});
+            g(self, &mut e, &Point { x: 0, y });
+            g(self, &mut e, &Point { x: self.w - 1, y });
         }
         e
     }
@@ -223,7 +238,7 @@ impl Map {
         let mut best_count: usize = 0;
         for y in 0..self.h {
             for x in 0..self.w {
-                if let Color::One(l) = self.get(&Point{x, y}) {
+                if let Color::One(l) = self.get(&Point { x, y }) {
                     if !esc.contains(&l) {
                         let e = cs.entry(l).or_insert(0);
                         *e += 1;
@@ -242,13 +257,16 @@ impl fmt::Debug for Map {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for y in 0..self.h {
             for x in 0..self.w {
-                write!(f, "{}", match self.get(&Point{x, y}) {
-                    Color::Unknown => '?',
-                    Color::Many => '.',
-                    Color::One(c) => {
-                        (b'A' + c as u8) as char
-                    },
-                }).unwrap();
+                write!(
+                    f,
+                    "{}",
+                    match self.get(&Point { x, y }) {
+                        Color::Unknown => '?',
+                        Color::Many => '.',
+                        Color::One(c) => (b'A' + c as u8) as char,
+                    }
+                )
+                .unwrap();
             }
             writeln!(f).unwrap();
         }
@@ -264,7 +282,7 @@ mod test {
     fn simple() {
         let pts: Vec<_> = [(1, 1), (1, 6), (8, 3), (3, 4), (5, 5), (8, 9)]
             .iter()
-            .map(|(x, y)| Point{x: *x, y: *y})
+            .map(|(x, y)| Point { x: *x, y: *y })
             .collect();
         let m = Map::from_points(&pts);
         println!("{:?}", &m);
@@ -272,7 +290,9 @@ mod test {
         let mut m1 = m.clone();
         loop {
             let m2 = m1.grow();
-            if m2 == m1 { break };
+            if m2 == m1 {
+                break;
+            };
             println!("{:?}", &m2);
             m1 = m2;
         }

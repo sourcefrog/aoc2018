@@ -16,12 +16,20 @@ use std::rc::Rc;
 
 pub fn main() {
     let mut s = String::new();
-    File::open("input/input12.txt").unwrap().read_to_string(&mut s).unwrap();
+    File::open("input/input12.txt")
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
     let mut p = Pots::from_string(&s);
     let n_steps = 50_000_000_000u64;
     let mut i = 0;
-    loop { // 0.. {
-        println!("left={}  {}", p.left(), p.format_pots(p.left()..(p.right()+1)));
+    loop {
+        // 0.. {
+        println!(
+            "left={}  {}",
+            p.left(),
+            p.format_pots(p.left()..(p.right() + 1))
+        );
         let next_p = p.step();
         // if i % 100_000 == 0 {
         //     println!("i={:>10} p={:?}", i, p);
@@ -40,7 +48,10 @@ pub fn main() {
     }
     // The sum of number of pots that have a plant is, the current sum, plus the remaining steps times
     // the number of pots.
-    println!("result = {}", p.magic() as u64 + (n_steps - i) * p.pots.len() as u64);
+    println!(
+        "result = {}",
+        p.magic() as u64 + (n_steps - i) * p.pots.len() as u64
+    );
 }
 
 fn from_b(c: u8) -> bool {
@@ -168,7 +179,7 @@ impl Pots {
             return false;
         }
         for i in self.pots.iter() {
-            if !other.pots.contains(&(i-1)) {
+            if !other.pots.contains(&(i - 1)) {
                 return false;
             }
         }

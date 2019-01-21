@@ -3,7 +3,6 @@
 /// For every point, calculate the distance to every landing, stopping if
 /// we get above the limit. If we complete before getting to the limit,
 /// that point counts.
-
 use std::io;
 use std::io::prelude::*;
 
@@ -64,10 +63,12 @@ impl Map {
         for y in 0..self.h {
             for x in 0..self.w {
                 let mut t = 0;
-                let p = Point{x, y};
+                let p = Point { x, y };
                 for l in &self.ls {
                     t += p.abs_difference(l);
-                    if t > limit { break; }
+                    if t > limit {
+                        break;
+                    }
                 }
                 if t < limit {
                     n += 1;
@@ -86,7 +87,7 @@ mod test {
     fn simple() {
         let pts: Vec<_> = [(1, 1), (1, 6), (8, 3), (3, 4), (5, 5), (8, 9)]
             .iter()
-            .map(|(x, y)| Point{x: *x, y: *y})
+            .map(|(x, y)| Point { x: *x, y: *y })
             .collect();
         let m = Map::from_points(pts);
         println!("{:?}", &m);

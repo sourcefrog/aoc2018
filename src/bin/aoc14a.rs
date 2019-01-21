@@ -44,9 +44,9 @@ impl Board {
         while self.r.len() < (l + N) {
             self.step();
         }
-        let v = &self.r[(l)..(l+N)];
+        let v = &self.r[(l)..(l + N)];
         assert_eq!(v.len(), N);
-        let vs: Vec<String> = v.iter().map(|d| {format!("{}", d)}).collect();
+        let vs: Vec<String> = v.iter().map(|d| format!("{}", d)).collect();
         vs.join("")
     }
 }
@@ -73,7 +73,10 @@ mod test {
         for _ in 3..=15 {
             b.step();
         }
-        assert_eq!(b.r, vec![3, 7, 1, 0, 1, 0, 1, 2, 4, 5, 1, 5, 8, 9, 1, 6, 7, 7, 9, 2]);
+        assert_eq!(
+            b.r,
+            vec![3, 7, 1, 0, 1, 0, 1, 2, 4, 5, 1, 5, 8, 9, 1, 6, 7, 7, 9, 2]
+        );
     }
 
     #[test]

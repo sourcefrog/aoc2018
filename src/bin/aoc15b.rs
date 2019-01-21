@@ -25,7 +25,9 @@ pub fn main() {
             "Elf power={}, result: {:?}, final n_elf={}",
             m.elf_power, battle_result, m.n_elf
         );
-        if m.n_elf == initial_elves { break; }
+        if m.n_elf == initial_elves {
+            break;
+        }
     }
 }
 

@@ -4,10 +4,7 @@ use std::io::prelude::*;
 
 pub fn main() {
     let nums = parse_ints(&io::stdin().lock().lines().next().unwrap().unwrap());
-    println!(
-        "root node value = {:?}",
-        node_value(&mut nums.into_iter())
-    )
+    println!("root node value = {:?}", node_value(&mut nums.into_iter()))
 }
 
 /// Read a node and any child nodes out of the iterator, and return the sum of
@@ -30,7 +27,7 @@ pub fn node_value(l: &mut Iterator<Item = usize>) -> usize {
         for _i in 0..nmeta {
             let m = l.next().unwrap();
             if m > 0 && m <= child_values.len() {
-                tot += child_values[m-1];
+                tot += child_values[m - 1];
             }
         }
         tot

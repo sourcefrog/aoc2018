@@ -1,5 +1,4 @@
 /// https://adventofcode.com/2018/day/7
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::io::prelude::*;
@@ -58,10 +57,12 @@ impl Constraints {
 
     /// Return the next step available for anyone to do.
     pub fn next_step(&mut self) -> Option<Step> {
-        if let Some(s) = self.deps
+        if let Some(s) = self
+            .deps
             .iter()
             .filter_map(|(k, v)| if v.is_empty() { Some(k) } else { None })
-            .next() {
+            .next()
+        {
             Some(*s)
         } else {
             None
@@ -86,7 +87,7 @@ impl Constraints {
                 if let Some(task) = self.next_step() {
                     let w = Worker {
                         completion: t + step_time(task) + time_base,
-                        task
+                        task,
                     };
                     println!("start {:?}", w);
                     self.deps.remove(&task);
