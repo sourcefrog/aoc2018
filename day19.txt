@@ -1,0 +1,34 @@
+ip=3 [0, 1, 9, 10551425, 0, 3] inst=Inst { opcode: Mulr, a: 1, b: 2, c: 4 } [0, 1, 9, 10551425, 9, 3]
+ip=4 [0, 1, 9, 10551425, 9, 4] inst=Inst { opcode: Eqrr, a: 4, b: 3, c: 4 } [0, 1, 9, 10551425, 0, 4]
+ip=5 [0, 1, 9, 10551425, 0, 5] inst=Inst { opcode: Addr, a: 4, b: 5, c: 5 } [0, 1, 9, 10551425, 0, 5]
+ip=6 [0, 1, 9, 10551425, 0, 6] inst=Inst { opcode: Addi, a: 5, b: 1, c: 5 } [0, 1, 9, 10551425, 0, 7]
+ip=8 [0, 1, 9, 10551425, 0, 8] inst=Inst { opcode: Addi, a: 2, b: 1, c: 2 } [0, 1, 10, 10551425, 0, 8]
+ip=9 [0, 1, 10, 10551425, 0, 9] inst=Inst { opcode: Gtrr, a: 2, b: 3, c: 4 } [0, 1, 10, 10551425, 0, 9]
+ip=10 [0, 1, 10, 10551425, 0, 10] inst=Inst { opcode: Addr, a: 5, b: 4, c: 5 } [0, 1, 10, 10551425, 0, 10]
+ip=11 [0, 1, 10, 10551425, 0, 11] inst=Inst { opcode: Seti, a: 2, b: 4, c: 5 } [0, 1, 10, 10551425, 0, 2]
+ip=3 [0, 1, 10, 10551425, 0, 3] inst=Inst { opcode: Mulr, a: 1, b: 2, c: 4 } [0, 1, 10, 10551425, 10, 3]
+
+IP is bound to register 5 (the last.)
+
+It enters this cycle passing through instructions at 3, 4, 5, 6, 8, 9, 10, 11.
+
+ 0: addi 5 16 5     r5 = r5 + 16    /// Jump to 16
+ 1: seti 1 3 1      r1 = 1
+ 2: seti 1 1 2      r2 = 1
+ 3:                 r4 = r1 * r2
+ 4:                 r4 = r4 == r3
+ 5:                 r5 = r4 + r5   /// in other words, skip the following instruction if r3 == r4
+ 6:                 r5 = r5 + 1    /// Skip the following instruction, 7
+ 7:                 r0 = r0 + r1   /// Increase r0 (normally skipped); r1 is normally 1
+ 8:                 r2 = r2 + 1    /// Increment r2
+ 9:                 r4 = r2 > r3
+10:                 r5 = r5 + r4   /// Skip following instruction if r2 > r3 (exiting loop?)
+11:                 r5 = 2         /// Loop back to before 3
+12: addi 1 1 1      r1 = r1 + 1
+12: gtrr 1 3 4      r4 = r1 > r3
+13: addr 4 5 5      r5 = r4 + r5   /// Skip following instruction if r1 > r3
+14: seti 1 5 5      r5 = 1         /// Loop back to 1
+15: mulr 5 5 5      r5 = r5 * r5   /// r5 = 15 * 15; terminates
+
+At a glance it looks like the only thing that will set r5 (IP) out of range is @15, `mulr 5 5 5`.
+
