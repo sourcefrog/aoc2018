@@ -5,8 +5,6 @@
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use regex;
-
 type Reg = usize;
 const OPS: Range<Reg> = 0..16;
 

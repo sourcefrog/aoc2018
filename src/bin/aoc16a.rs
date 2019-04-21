@@ -1,8 +1,5 @@
 #![allow(dead_code)]
 
-/// Infer opcode numbers from examples.
-use regex;
-
 type Reg = usize;
 
 /// An instruction
