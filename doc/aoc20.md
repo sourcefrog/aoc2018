@@ -151,3 +151,59 @@ So, every time we visit a square:
 Because the updates of neighbors requires tracing paths that wouldn't need
 to be follow just for building doors, it seems easier to do this in a second
 pass after building the map.
+
+## Rethinking traversal
+
+The current code (as of 41d6a8a0dac8118c60a57809e264b1abcaf67f42) has a little 
+trouble with expressions like `((NN|SS)|(EE|WW))`, and ends up following redundant
+paths. I think it's only a performance problem, not correctness, but it might 
+become a blocker to full use.
+
+One good thing about the current exploration is that it points to how I could write
+unit tests for traversal to check that it's working as expected, including that
+it's not generating any redundant traversals.
+
+...
+
+Actually, perhaps I'm doing it the hard way in trying to generate paths that
+can match the regexp.
+
+Here's an alternative. Start at the orgin, and take a breadth-first exploration
+of all possible paths, i.e. by appending each direction to the currently known
+paths.
+
+Then we just need to determine if the path we have, can possibly be a prefix of
+anything that matches the regexp. Perhaps this is almost the same thing.
+
+...
+
+I think I want a state machine that, given a regexp, generates all paths that
+can possibly match it. It has some kind of recursive traversal, with an existing
+prefix.
+
+Literals: append to the prefix.
+
+    'abc' ++ 'xyz'
+
+Alternate group: apply the same prefix to expanding each of them, followed by 
+whatever comes after the entire group.
+
+    'abc(xy|wz)ed' -> expand(prefix='abc', 'xy' + 'ed'), 
+       expand(prefix='abc', 'wz' + 'ed')
+       => ['abcxyed', 'abcwzed']
+       
+    'a((x|y)|(w|z))e' => expand('a', '(x|y)' + 'e') + expand('a', '(w|z)', 'e')
+      => expand('a', 'x' + 'e') + expand('a', 'y', 'e') + ...
+
+So the expand rule is:
+
+* Consume characters up until the first paren, if any, and append to the prefix
+
+* If there's a paren, break out all the alternatives, taking account of nesting 
+  parens, until the end. Remove that last paren and keep its suffix. 
+  Push them onto the list of things to expand.
+  
+All the strings could be handled as range indexes into the instructions string.
+
+This seems more straightforward. 
+       
