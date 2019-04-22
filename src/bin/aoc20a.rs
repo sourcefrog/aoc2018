@@ -12,67 +12,144 @@ struct Point {
     y: Coord,
 }
 
-/// Expand this regexp into a vector of every string that it can possibly match.
-///
-/// This is done by successively pulling off the first, top-level alternative group,
-/// and enqueueing a new string to expand, for each of those alternatives.
-/// This proceeds until there's nothing more to expand, at which point the string
-/// is added to the result list.
-fn expand(instr: &str) -> Vec<String> {
-    // TODO: Maybe work in terms of indexes into the instruction list, rather than
-    // copied strings?
-    // TODO: Maybe store the queue as a constant part followed by a paren
-    // part, to avoid repeatedly scanning the strings to find the first paren.
+type StateId = usize;
+const NONE: StateId = 0;
+const ORIGIN: StateId = 1;
 
-    // Queue of partially-completed expansions that we need to revisit. Each
-    // might contain one or more alternates.
-    let mut queue: VecDeque<String> = VecDeque::new();
-    queue.push_back(instr.to_string());
-    let mut r = Vec::new();
-    let mut ipaths = 0;
-    while let Some(x) = queue.pop_front() {
-        let (head, alts, tail) = parse_alternate(x);
-        if alts.is_empty() {
-            // If there were no alternates, there can't be a tail after them.
-            debug_assert!(tail.is_empty());
-            ipaths += 1;
-            if ipaths % 100000 == 1 {
-                println!("found {:?} paths, queue depth {}, recently {:?}", ipaths, queue.len(), head);
-            }
-            // r.push(head);
-        } else {
-            for a in alts {
-                // Queue up each of these for later evaluation
-                let mut b = head.clone();
-                b.push_str(&a);
-                b.push_str(&tail);
-                queue.push_back(b);
-            }
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum Dir {
+    N,
+    S,
+    E,
+    W,
+}
+
+static DIRECTIONS: [Dir; 4] = [Dir::N, Dir::S, Dir::E, Dir::W];
+
+impl Dir {
+    fn from_char(c: char) -> Dir {
+        match c {
+            'N' => Dir::N,
+            'S' => Dir::S,
+            'E' => Dir::E,
+            'W' => Dir::W,
+            other => panic!(other),
         }
     }
-    r
+
+    fn to_char(&self) -> char {
+        match self {
+            Dir::N => 'N',
+            Dir::S => 'S',
+            Dir::E => 'E',
+            Dir::W => 'W',
+        }
+    }
+}
+
+#[derive(Debug)]
+struct StateMap {
+    // State machine, indexed by arbitrary state numbers, with each one having
+    // up to four links outward, depending on the direction. State 0 is unused,
+    // 1 is the origin.
+    m: Vec<[StateId; 4]>,
+}
+
+impl StateMap {
+    /// Add a link saying that if we're in `from_state` and we go `direction` we get to a new
+    /// state, or return an existing such link.
+    fn get_or_insert(&mut self, from_state: StateId, direction: Dir) -> StateId {
+        assert!(from_state > 0);
+        let dir_i = direction as usize;
+        let existing = self.m[from_state][dir_i];
+        if existing > 0 {
+            existing
+        } else {
+            let new_state = self.m.len();
+            self.m.push([NONE; 4]);
+            self.m.get_mut(from_state).unwrap()[dir_i] = new_state;
+            new_state
+        }
+    }
+
+    /// Build a state map from a regexp.
+    fn from_str(r: &str) -> StateMap {
+        debug_assert!(r.is_ascii());
+        let mut new = StateMap {
+            m: vec![[NONE; 4], [NONE; 4], [NONE; 4]],
+        };
+        let mut last = ORIGIN;
+        for c in r.chars() {
+            last = new.get_or_insert(last, Dir::from_char(c));
+        }
+        new
+    }
+
+    /// Return true if the given string matches this map.
+    fn is_partial_match(&self, a: &str) -> bool {
+        let mut s: StateId = ORIGIN;
+        for c in a.chars() {
+            let next = self.m[s][Dir::from_char(c) as usize];
+            println!("{:?} => state {:?}", c, next);
+            if next == NONE {
+                // c isn't accepted here.
+                return false;
+            }
+            s = next;
+        }
+        // Note, we can't currently determine if this string completely satisfies the regexp or
+        // ends early, because we don't encode an 'end' move. It doesn't seem important for these
+        // purposes, yet.
+        true
+    }
+
+    /// Yield all possible matches for this regexp.
+    fn all_matches(&self) -> Vec<String> {
+        // States and prefixes that we still need to consider.
+        let mut queue: Vec<(String, StateId)> = vec![(String::new(), ORIGIN)];
+        let mut r = Vec::new();
+        while let Some((prefix, c)) = queue.pop() {
+            if self.m[c] == [NONE; 4] {
+                // No more steps from here, so we reached the end of a string.
+                println!("found {:?}", prefix);
+                r.push(prefix);
+            } else {
+                // Descend through all possible children.
+                for dir in DIRECTIONS.iter() {
+                    let d = *dir as usize;
+                    let newstate = self.m[c][d];
+                    if newstate != NONE {
+                        let mut newp = prefix.clone();
+                        newp.push(dir.to_char());
+                        println!("move from {} in {:?} to {}", c, newp, newstate);
+                        queue.push((newp, newstate));
+                    }
+                }
+            }
+        }
+        r
+    }
 }
 
 /// Parse out the first alternate group from a string, returning the
 /// head (before the alternate), a vec of alternatives, and then the
 /// tail after it. Only the topmost alternative is parsed-out, so any of
 /// the alts might themselves contain alternatives that later need to be expanded.
-fn parse_alternate(s: String) -> (String, Vec<String>, String) {
-    let sb = s.as_bytes();
+fn parse_alternate(s: &[u8]) -> (&[u8], Vec<&[u8]>, &[u8]) {
     let mut i = 0;
-    let mut head = String::new();
+    let mut head = &s[..0];
     // Pull off any head section before the parens
     loop {
-        if i >= sb.len() {
-            return (s, vec![], String::new()); // contains no paren
-        } else if sb[i] == b'(' {
-            head = s[..i].to_string();
+        if i >= s.len() {
+            return (s, vec![], &s[i..]); // contains no paren
+        } else if s[i] == b'(' {
+            head = &s[..i];
             break;
         }
         i += 1;
     }
     // Skip over opening paren
-    debug_assert_eq!(sb[i], b'(');
+    debug_assert_eq!(s[i], b'(');
     i += 1;
 
     // Walk over alternates, accumulating each one into a vector, breaking
@@ -81,19 +158,19 @@ fn parse_alternate(s: String) -> (String, Vec<String>, String) {
     let mut level = 0;
     let mut ai = i;
     loop {
-        let c = sb[i];
+        let c = s[i];
         if level == 0 {
             match c {
                 b'(' => {
                     level += 1;
                 }
                 b'|' => {
-                    alts.push(s[ai..i].to_string());
+                    alts.push(&s[ai..i]);
                     ai = i + 1;
                 }
                 b')' => {
                     // conclude the last alternate, then stop
-                    alts.push(s[ai..i].to_string());
+                    alts.push(&s[ai..i]);
                     i += 1;
                     break;
                 }
@@ -110,18 +187,8 @@ fn parse_alternate(s: String) -> (String, Vec<String>, String) {
         }
         i += 1;
     }
-    let tail = s[i..].to_string();
+    let tail = &s[i..];
     (head, alts, tail)
-}
-
-fn walk(r: &str) {
-    assert!(r.starts_with("^"));
-    assert!(r.ends_with("$"));
-    assert!(r.is_ascii());
-    let r = &r[1..(r.len() - 1)];
-    println!("r inner = {:?}", r);
-    let cs: Vec<char> = r.chars().collect();
-    // run_top(&cs);
 }
 
 /// Return the canned input with newline, ^ and $ removed.
@@ -138,24 +205,21 @@ fn load_input() -> String {
 }
 
 pub fn main() {
-    //walk("^WNE$");
-    // walk("^WNE(EEE(SS|NN)|WWW|)$");
-    // walk("^WNE(EEE(SS|NN)|WWW)$");
-    // walk("^W((EE|SS)|(NN|WW))$");
-    // walk("^WNE(EEE|WWW|)$");
+    unimplemented!();
 }
 
 #[cfg(test)]
 mod test {
-    use super::expand;
     use super::parse_alternate;
 
     fn check_parse(s: &str, head: &str, alts: Vec<&str>, tail: &str) {
-        let alt_strings: Vec<String> = alts.into_iter().map(str::to_string).collect();
-        assert_eq!(
-            parse_alternate(s.to_string()),
-            (head.to_string(), alt_strings, tail.to_string())
-        );
+        let (h, a, t) = parse_alternate(s.as_bytes());
+        assert_eq!(h, head.as_bytes());
+        assert_eq!(t, tail.as_bytes());
+        assert_eq!(a.len(), alts.len());
+        for (ia, ib) in a.iter().zip(alts.iter()) {
+            assert_eq!(ia, &ib.as_bytes());
+        }
     }
 
     #[test]
@@ -170,16 +234,15 @@ mod test {
     }
 
     #[test]
-    fn test_expand() {
-        assert_eq!(expand(""), vec![""]);
-        assert_eq!(expand("N"), vec!["N"]);
-        assert_eq!(expand("NEW"), vec!["NEW"]);
-        assert_eq!(expand("(N|E)"), vec!["N", "E"]);
-        assert_eq!(expand("((N|S)|(E|W))"), vec!["N", "S", "E", "W"]);
-        assert_eq!(
-            expand("NEWS((N|E|)EE|WW)"),
-            vec!["NEWSWW", "NEWSNEE", "NEWSEEE", "NEWSEE"]
-        );
+    fn test_statemap_from_str() {
+        use super::StateMap;
+        let m = StateMap::from_str("NEWS");
+        println!("{:#?}", m);
+        assert!(m.is_partial_match("NEWS"));
+        assert!(m.is_partial_match("NE"));
+        assert!(!m.is_partial_match("NN"));
+        assert!(!m.is_partial_match("EWS"));
+        assert_eq!(m.all_matches(), vec!["NEWS".to_string()]);
     }
 
     #[test]
@@ -191,7 +254,5 @@ mod test {
     fn test_expand_input() {
         let inst = super::load_input();
         println!("{:?} bytes of input", inst.len());
-        let exp = expand(&inst);
-        println!("{:?} paths in output; first is {:?}", exp.len(), exp[0]);
     }
 }
