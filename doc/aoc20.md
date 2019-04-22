@@ -207,3 +207,15 @@ All the strings could be handled as range indexes into the instructions string.
 
 This seems more straightforward. 
        
+## Generating all paths is too slow.
+
+The code in a8da7f5 takes this approach to generate all possible paths, but
+it blows up on the real input, producing millions of paths, with millions
+more queued up to be completed, before running out of memory. And all this while
+the path length remains fairly modest at a few hundred steps.
+
+So, perhaps we should try the other, of taking every possible step and seeing
+if it is allowed by the patterns?
+
+Or, before that - I wonder if it'd help to just eliminate paths we've already seen,
+simply by tracking them in a set?
