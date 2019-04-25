@@ -108,6 +108,55 @@ impl Map {
             Dir::W => self.e_doors.insert(p.step(d)),
         };
     }
+
+    /// Return all rooms reachable through a door from p.
+    fn neighbors(&self, p: Point) -> Vec<Point> {
+        let mut v = Vec::with_capacity(4);
+        if self.n_doors.contains(&p) {
+            v.push(p.step(Dir::N))
+        }
+        if self.e_doors.contains(&p) {
+            v.push(p.step(Dir::E))
+        }
+        let p2 = p.step(Dir::W);
+        if self.e_doors.contains(&p2) {
+            v.push(p2)
+        }
+        let p2 = p.step(Dir::S);
+        if self.n_doors.contains(&p2) {
+            v.push(p2)
+        }
+        v
+    }
+
+    /// Find the longest shortest-path from the origin.
+    fn furthest(&self) -> usize {
+        // Successively visit all neighboring rooms at distance `depth`, that have not yet been
+        // seen, until we have no more to visit.
+        let mut depth = 0;
+        let mut seen = BTreeSet::new();
+        let mut next = BTreeSet::new();
+        next.insert(Point::origin());
+        loop {
+            println!("depth {}, seen={:?}, next={:?}", depth, seen, next);
+            let mut new_rooms = BTreeSet::new();
+            for r in next {
+                assert!(seen.insert(r));
+                for n in self.neighbors(r) {
+                    if !seen.contains(&n) {
+                        println!("  visit {:?} from {:?}", n, r);
+                        new_rooms.insert(n);
+                    }
+                }
+            }
+            next = new_rooms;
+            if next.is_empty() {
+                return depth;
+            } else {
+                depth += 1;
+            }
+        }
+    }
 }
 
 /// One of these is pushed every time we enter a new nested group, and popped
@@ -242,6 +291,12 @@ mod test {
     }
 
     #[test]
+    fn example0() {
+        let map = super::expand("WNE");
+        assert_eq!(map.furthest(), 3);
+    }
+
+    #[test]
     fn example1() {
         // Example given in the problem statement:
         //
@@ -258,7 +313,7 @@ mod test {
         // They're all sorted by x first then y, and y runs downwards. X is the origin in the
         // diagram.
         let map = super::expand("ENWWW(NEEE|SSE(EE|N))");
-        let e_doors: Vec<Point> = map.e_doors.into_iter().collect();
+        let e_doors: Vec<Point> = map.e_doors.iter().cloned().collect();
         assert_eq!(
             e_doors,
             vec![
@@ -274,10 +329,23 @@ mod test {
                 pt(0, 1)
             ]
         );
-        let n_doors: Vec<Point> = map.n_doors.into_iter().collect();
+        let n_doors: Vec<Point> = map.n_doors.iter().cloned().collect();
         assert_eq!(
             n_doors,
             vec![pt(-2, -1), pt(-2, 0), pt(-2, 1), pt(-1, 1), pt(1, 0),]
         );
+        assert_eq!(map.furthest(), 10);
+    }
+
+    #[test]
+    fn example2() {
+        let map = super::expand("ENNWSWW(NEWS|)SSSEEN(WNSE|)EE(SWEN|)NNN");
+        assert_eq!(map.furthest(), 18);
+    }
+
+    #[test]
+    fn example3() {
+        let map = super::expand("ESSWWN(E|NNENN(EESS(WNSE|)SSS|WWWSSSSE(SW|NNNE)))");
+        assert_eq!(map.furthest(), 23);
     }
 }
