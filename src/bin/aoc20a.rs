@@ -3,32 +3,32 @@
 /// https://adventofcode.com/2018/day/20
 use std::collections::BTreeSet;
 use std::env;
+use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
 
 type Coord = i32;
-#[derive(Debug, PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
 struct Point {
     x: Coord,
     y: Coord,
 }
 
 impl Point {
+    #[allow(unused)]
     pub fn update(&mut self, dir: Dir) {
+        *self = self.step(dir);
+    }
+
+    pub fn step(self, dir: Dir) -> Point {
+        let mut n = self.clone();
         match dir {
-            Dir::N => {
-                self.y -= 1;
-            }
-            Dir::S => {
-                self.y += 1;
-            }
-            Dir::E => {
-                self.x += 1;
-            }
-            Dir::W => {
-                self.x -= 1;
-            }
-        }
+            Dir::N => n.y -= 1,
+            Dir::S => n.y += 1,
+            Dir::E => n.x += 1,
+            Dir::W => n.x -= 1,
+        };
+        n
     }
 
     pub fn origin() -> Point {
@@ -37,6 +37,13 @@ impl Point {
         }
     }
 }
+
+impl fmt::Debug for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Dir {
@@ -61,7 +68,7 @@ impl Dir {
     }
 
     #[allow(unused)]
-    fn to_char(&self) -> char {
+    fn to_char(self) -> char {
         match self {
             Dir::N => 'N',
             Dir::S => 'S',
@@ -103,21 +110,20 @@ fn expand(r: &str) {
     let mut g = Vec::new();
 
     // Currently-live turtle positions, for the current branch.
-    let mut turs = vec![Point::origin()];
+    let mut turs = BTreeSet::new();
+    turs.insert(Point::origin());
 
     for c in r.chars() {
         match c {
             'N' | 'E' | 'S' | 'W' => {
                 let dir = Dir::from_char(c);
-                for t in turs.iter_mut() {
-                    t.update(dir);
-                }
+                turs = turs.iter().map(|t| t.step(dir)).collect();
             }
             '(' => {
                 // Remember these starting positions, which will apply to
                 // all groups inside.
                 let gs = GroupState {
-                    sps: turs.iter().cloned().collect(),
+                    sps: turs.clone(),
                     eps: BTreeSet::new(),
                 };
                 // Hold onto these turtles and move them through the first
@@ -129,11 +135,10 @@ fn expand(r: &str) {
                 // Remember these final points we reached, and resume them at
                 // the end of this group. Then, create new turtles starting at
                 // the beginning.
-                let mut gs = g.pop().unwrap();
-                gs.eps.extend(turs.into_iter());
-                turs = gs.sps.iter().cloned().collect();
+                let gs = g.last_mut().unwrap();
+                gs.eps.extend(&turs);
+                turs = gs.sps.clone();
                 println!("Start branch of this group: {:?}", &gs);
-                g.push(gs);
             }
             ')' => {
                 // All the final positions across all the branches, including
@@ -141,8 +146,8 @@ fn expand(r: &str) {
                 // Forget about the group and the start position.
                 let gs = g.pop().unwrap();
                 println!("Finish group: {:?}", &gs);
-                turs.extend(gs.eps.into_iter());
-                println!("After finishing group turs=: {:?}", &turs);
+                turs.extend(&gs.eps);
+                println!("After finishing group, turs={:?}", &turs);
             }
             _ => {
                 panic!("unexpected char {:?}", c);
@@ -165,7 +170,7 @@ fn load_input() -> String {
         .unwrap();
     s.shrink_to_fit();
     assert!(s.ends_with("$\n"));
-    assert!(s.starts_with("^"));
+    assert!(s.starts_with('^'));
     s[1..(s.len() - 2)].to_string()
 }
 
