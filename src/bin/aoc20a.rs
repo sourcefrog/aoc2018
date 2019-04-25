@@ -32,10 +32,13 @@ impl Point {
     }
 
     pub fn origin() -> Point {
-        Point {
-            x: 0, y: 0,
-        }
+        Point { x: 0, y: 0 }
     }
+}
+
+#[allow(unused)]
+fn pt(x: Coord, y: Coord) -> Point {
+    Point { x, y }
 }
 
 impl fmt::Debug for Point {
@@ -43,7 +46,6 @@ impl fmt::Debug for Point {
         write!(f, "({}, {})", self.x, self.y)
     }
 }
-
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Dir {
@@ -78,6 +80,36 @@ impl Dir {
     }
 }
 
+/// Map of rooms that have been visited.
+///
+/// All we actually have to remember is which E-W and N-S doors we've passed through.
+/// If we have gone through a door, then we know there must be rooms on either side
+/// of it, and we can't know about rooms if we never pass through a door to or
+/// from them.
+///
+/// Note that we can't pass directly between neighboring rooms unless there is a
+/// door.
+#[derive(Default, Debug)]
+struct Map {
+    /// For each entry, there's a door to the north.
+    n_doors: BTreeSet<Point>,
+    /// For each entry there's a door to the east.
+    e_doors: BTreeSet<Point>,
+}
+
+impl Map {
+    /// Note that you can move from p in direction d (and so also in the
+    /// opposite direction.)
+    fn record_move(&mut self, p: Point, d: Dir) {
+        match d {
+            Dir::N => self.n_doors.insert(p),
+            Dir::E => self.e_doors.insert(p),
+            Dir::S => self.n_doors.insert(p.step(d)),
+            Dir::W => self.e_doors.insert(p.step(d)),
+        };
+    }
+}
+
 /// One of these is pushed every time we enter a new nested group, and popped
 /// when finishing it. There's also one for the implicit top-level group.
 #[derive(Debug)]
@@ -93,7 +125,7 @@ struct GroupState {
     eps: BTreeSet<Point>,
 }
 
-fn expand(r: &str) {
+fn expand(r: &str) -> Map {
     // Walk through the string from left to right.
     //
     // When you see an open paren, push the map position onto a stack as being
@@ -109,6 +141,8 @@ fn expand(r: &str) {
     // the start of this group.
     let mut g = Vec::new();
 
+    let mut map = Map::default();
+
     // Currently-live turtle positions, for the current branch.
     let mut turs = BTreeSet::new();
     turs.insert(Point::origin());
@@ -117,7 +151,12 @@ fn expand(r: &str) {
         match c {
             'N' | 'E' | 'S' | 'W' => {
                 let dir = Dir::from_char(c);
-                turs = turs.iter().map(|t| t.step(dir)).collect();
+                let mut newturs = BTreeSet::new();
+                for t in turs {
+                    map.record_move(t, dir);
+                    newturs.insert(t.step(dir));
+                }
+                turs = newturs;
             }
             '(' => {
                 // Remember these starting positions, which will apply to
@@ -159,6 +198,8 @@ fn expand(r: &str) {
     assert!(g.is_empty());
     println!("Final turtles: {:?}", &turs);
     println!("{} final points", turs.len());
+
+    map
 }
 
 /// Return the canned input with newline, ^ and $ removed.
@@ -186,6 +227,9 @@ pub fn main() {
 
 #[cfg(test)]
 mod test {
+    use super::pt;
+    use super::Point;
+
     #[test]
     fn test_load_input() {
         super::load_input();
@@ -195,5 +239,45 @@ mod test {
     fn test_expand_input() {
         let inst = super::load_input();
         println!("{:?} bytes of input", inst.len());
+    }
+
+    #[test]
+    fn example1() {
+        // Example given in the problem statement:
+        //
+        // #########
+        // #.|.|.|.#
+        // #-#######
+        // #.|.|.|.#
+        // #-#####-#
+        // #.#.#X|.#
+        // #-#-#####
+        // #.|.|.|.#
+        // #########
+        //
+        // They're all sorted by x first then y, and y runs downwards. X is the origin in the
+        // diagram.
+        let map = super::expand("ENWWW(NEEE|SSE(EE|N))");
+        let e_doors: Vec<Point> = map.e_doors.into_iter().collect();
+        assert_eq!(
+            e_doors,
+            vec![
+                pt(-2, -2),
+                pt(-2, -1),
+                pt(-2, 1),
+                pt(-1, -2),
+                pt(-1, -1),
+                pt(-1, 1),
+                pt(0, -2),
+                pt(0, -1),
+                pt(0, 0),
+                pt(0, 1)
+            ]
+        );
+        let n_doors: Vec<Point> = map.n_doors.into_iter().collect();
+        assert_eq!(
+            n_doors,
+            vec![pt(-2, -1), pt(-2, 0), pt(-2, 1), pt(-1, 1), pt(1, 0),]
+        );
     }
 }
