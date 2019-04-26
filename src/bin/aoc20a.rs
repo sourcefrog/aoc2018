@@ -138,13 +138,13 @@ impl Map {
         let mut next = BTreeSet::new();
         next.insert(Point::origin());
         loop {
-            println!("depth {}, seen={:?}, next={:?}", depth, seen, next);
+            // println!("depth {}, seen={:?}, next={:?}", depth, seen, next);
             let mut new_rooms = BTreeSet::new();
             for r in next {
                 assert!(seen.insert(r));
                 for n in self.neighbors(r) {
                     if !seen.contains(&n) {
-                        println!("  visit {:?} from {:?}", n, r);
+                        // println!("  visit {:?} from {:?}", n, r);
                         new_rooms.insert(n);
                     }
                 }
@@ -216,7 +216,7 @@ fn expand(r: &str) -> Map {
                 };
                 // Hold onto these turtles and move them through the first
                 // branch of the group.
-                println!("Starting a new group {:?}", &gs);
+                // println!("Starting a new group {:?}", &gs);
                 g.push(gs);
             }
             '|' => {
@@ -226,16 +226,16 @@ fn expand(r: &str) -> Map {
                 let gs = g.last_mut().unwrap();
                 gs.eps.extend(&turs);
                 turs = gs.sps.clone();
-                println!("Start branch of this group: {:?}", &gs);
+                // println!("Start branch of this group: {:?}", &gs);
             }
             ')' => {
                 // All the final positions across all the branches, including
                 // the currently active one, are the new current turtle positions.
                 // Forget about the group and the start position.
                 let gs = g.pop().unwrap();
-                println!("Finish group: {:?}", &gs);
+                // println!("Finish group: {:?}", &gs);
                 turs.extend(&gs.eps);
-                println!("After finishing group, turs={:?}", &turs);
+                // println!("After finishing group, turs={:?}", &turs);
             }
             _ => {
                 panic!("unexpected char {:?}", c);
@@ -258,10 +258,10 @@ fn load_input() -> String {
         .unwrap()
         .read_to_string(&mut s)
         .unwrap();
-    s.shrink_to_fit();
-    assert!(s.ends_with("$\n"));
+    s = s.trim_end().to_string();
+    assert!(s.ends_with('$'), s);
     assert!(s.starts_with('^'));
-    s[1..(s.len() - 2)].to_string()
+    s[1..(s.len() - 1)].to_string()
 }
 
 pub fn main() {
@@ -270,7 +270,8 @@ pub fn main() {
         expand(&argv[1]);
     } else {
         let inp = load_input();
-        expand(&inp);
+        let map = expand(&inp);
+        println!("furthest room: {}", map.furthest());
     }
 }
 
@@ -347,5 +348,17 @@ mod test {
     fn example3() {
         let map = super::expand("ESSWWN(E|NNENN(EESS(WNSE|)SSS|WWWSSSSE(SW|NNNE)))");
         assert_eq!(map.furthest(), 23);
+    }
+
+    #[test]
+    fn example4() {
+        let map = super::expand("WSSEESWWWNW(S|NENNEEEENN(ESSSSW(NWSW|SSEN)|WSWWN(E|WWS(E|SS))))");
+        assert_eq!(map.furthest(), 31);
+    }
+
+    #[test]
+    fn solve_20a() {
+        let map = super::expand(&super::load_input());
+        assert_eq!(map.furthest(), 3725);
     }
 }
