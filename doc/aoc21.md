@@ -30,7 +30,7 @@ Means just r3 = 65536 (i.e. 1 << 16).
     muli 5 65899 5
     bani 5 16777215 5
     gtir 256 3 2
-    addr 2 4 4
+    14  addr 2 4 4      r4 += r2; conditional skip
     15  addi 4 1 4      Skip following?
     16  seti 27 4 4     Jump to after 27
     17  seti 0 4 2
@@ -41,12 +41,17 @@ Means just r3 = 65536 (i.e. 1 << 16).
     22  addi 4 1 4      skip following
     23  seti 25 9 4     Jump to after 25
     24  addi 2 1 2      r2 += 1
-    25  seti 17 9 4         Jump after 17
-    26  setr 2 8 3
-    27  seti 7 9 4
-    28  eqrr 5 0 2
-    29  addr 2 4 4      r4 += 2
-    30  seti 5 5 4
+    25  seti 17 9 4     Jump after 17
+    26  setr 2 8 3      r3 = r2
+    27  seti 7 9 4      jump after 7
+    28  eqrr 5 0 2      r2 == (r5 == r0)
+    29  addr 2 4 4      r4 += r2; conditional skip
+    30  seti 5 5 4      Jump after 5
 
 Executing line 29 will jump past the last instruction, and thereby halt. Can it halt
-anywhere else?
+anywhere else? 
+
+This can't be reached in a straight line because of the unconditional jump at 27. 
+But 16 jumps directly there. So we'll stop if at this point r5==r0.
+
+r0 seems to never be assigned, it just keeps the initial value. That's nice.
