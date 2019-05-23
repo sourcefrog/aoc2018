@@ -206,3 +206,12 @@ fn solve() -> usize {
 pub fn main() {
     println!("Result: {}", solve());;
 }
+
+
+#[cfg(test)]
+mod test {
+    #[test]
+    pub fn test_solve() {
+        assert_eq!(super::solve(), 202209);
+    }
+}
