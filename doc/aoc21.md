@@ -22,7 +22,7 @@ Continue here if test was OK; reset r5.
      6  bori 5 65536 3      r3 = r5 | 65536
         ## Since r5 = 0 sets r3 = 65536 (i.e. 1 << 16).
      7  seti 10828530 0 5   r5 = 10828530
-     8  bani 3 255 2
+     8  bani 3 255 2        r2 = r3 & 255   # reached from 27
      9  addr 5 2 5
     10  bani 5 16777215 5
     11  muli 5 65899 5
@@ -60,3 +60,23 @@ region of 7-12.
 Rather than solving this in closed form I could run this code using the
 existing interpreter, and see what values of r5 we ever observe at line 28.
 That gives the correct answer of 202209.
+
+## Part Two
+
+> What is the lowest non-negative integer value for register 0 that causes the
+> program to halt after executing the most instructions? (The program must
+> actually halt; running forever does not count as halting.)
+
+The previous empirical approach seems that we find many many unique r5 values
+without reaching any obvious plateau and also without repeating, so this might
+need a bit more thought.
+
+Actually: the numbers are always under 16777215, 0xffffff, because of the
+two `bani` instructions that cap it, and that's not unreasonable to just test
+by brute force, even if it takes a few seconds to run.
+
+I'm not totally convinced why this must be true, but the first time we find a
+repeated value, that means the system is cycling. Whatever was the last value
+we saw before it started to cycle, is the longest answer.
+
+The answer was 11777564.

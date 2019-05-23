@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::prelude::*;
 use std::str::FromStr;
@@ -195,10 +196,18 @@ fn solve() -> usize {
         .read_to_string(&mut s)
         .unwrap();
     let mut prog = Program::from_str(&s).unwrap();
+    let mut seen = BTreeSet::new();
+    let mut last = 0;
     loop {
         assert!(prog.step());
         if prog.ip == 28 {
-            return prog.reg[5];
+            let r5 = prog.reg[5];
+            if !seen.insert(r5) {
+                // We've started to cycle: the previous value was the
+                // one that generates the longest run.
+                return last;
+            }
+            last = r5;
         }
     }
 }
@@ -210,7 +219,7 @@ pub fn main() {
 #[cfg(test)]
 mod test {
     #[test]
-    pub fn test_solve() {
-        assert_eq!(super::solve(), 202209);
+    fn known_result() {
+        assert_eq!(super::solve(), 11777564);
     }
 }
