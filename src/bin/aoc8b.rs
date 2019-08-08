@@ -9,7 +9,7 @@ pub fn main() {
 
 /// Read a node and any child nodes out of the iterator, and return the sum of
 /// their metadata.
-pub fn node_value(l: &mut Iterator<Item = usize>) -> usize {
+fn node_value<I: Iterator<Item = usize>>(l: &mut I) -> usize {
     let nkids = l.next().unwrap();
     let nmeta = l.next().unwrap();
     let mut child_values: Vec<usize> = Vec::with_capacity(nkids);
