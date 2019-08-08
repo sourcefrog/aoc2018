@@ -72,7 +72,7 @@ impl<T: Clone> Matrix<T> {
         v
     }
 
-    pub fn iter_points<'a>(&'a self) -> Box<Iterator<Item = Point> + 'a> {
+    pub fn iter_points<'a>(&'a self) -> Box<dyn Iterator<Item = Point> + 'a> {
         Box::new((0..self.h).flat_map(move |y| (0..self.w).map(move |x| point(x, y))))
     }
 }
