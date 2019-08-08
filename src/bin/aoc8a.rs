@@ -1,5 +1,4 @@
 /// https://adventofcode.com/2018/day/8
-// use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::io::prelude::*;
 
@@ -14,7 +13,7 @@ pub fn main() {
 
 /// Read a node and any child nodes out of the iterator, and return the sum of
 /// their metadata.
-pub fn sum_metadata(l: &mut Iterator<Item = u32>) -> u32 {
+fn sum_metadata<I: Iterator<Item = u32>>(l: &mut I) -> u32 {
     let nkids = l.next().unwrap();
     let nmeta = l.next().unwrap();
     let mut tot = 0;
