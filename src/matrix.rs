@@ -77,25 +77,10 @@ impl<T: Clone> Matrix<T> {
     }
 }
 
-impl<T: Clone> Index<(usize, usize)> for Matrix<T> {
-    type Output = T;
-    fn index(&self, p: (usize, usize)) -> &T {
-        &self.d[self.w * p.0 + p.1]
-    }
-}
-
 impl<T: Clone> Index<Point> for Matrix<T> {
     type Output = T;
     fn index(&self, p: Point) -> &T {
         &self.d[self.w * p.y + p.x]
-    }
-}
-
-impl<T: Clone> IndexMut<(usize, usize)> for Matrix<T> {
-    fn index_mut(&mut self, p: (usize, usize)) -> &mut T {
-        assert!(p.0 < self.h);
-        assert!(p.1 < self.w);
-        &mut self.d[self.w * p.0 + p.1]
     }
 }
 
@@ -143,10 +128,10 @@ mod test {
     #[test]
     fn simple_matrix() {
         let mut m = Matrix::new(10, 10, 7u8);
-        assert_eq!(m[(5, 5)], 7u8);
-        m[(6, 6)] = 10;
-        assert_eq!(m[(6, 6)], 10);
-        assert_eq!(m[(5, 5)], 7u8);
+        assert_eq!(m[point(5, 5)], 7u8);
+        m[point(6, 6)] = 10;
+        assert_eq!(m[point(6, 6)], 10);
+        assert_eq!(m[point(5, 5)], 7u8);
     }
 
     #[test]
@@ -158,8 +143,8 @@ mod test {
         let m = b.finish();
         assert_eq!(m.width(), 3);
         assert_eq!(m.height(), 3);
-        assert_eq!(m[(0, 0)], 1);
-        assert_eq!(m[(0, 2)], 3);
-        assert_eq!(m[(2, 2)], 9);
+        assert_eq!(m[point(0, 0)], 1);
+        assert_eq!(m[point(2, 0)], 3);
+        assert_eq!(m[point(2, 2)], 9);
     }
 }
