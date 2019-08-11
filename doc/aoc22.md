@@ -32,3 +32,22 @@ level, derived from the geologic index (plus the depth.)
 
 Oh, actually I misread this: it compounds not by multiplying the geologic
 indexes, but the erosion levels. And the erosion levels are capped.
+
+## Part 2
+
+This also seems like a shortest-path question, but with the additional
+complication of choosing the right tool.
+
+We could, at least conceptually, model that as an additional z-dimension
+on the map, with three levels depending on which tool is equipped. You
+can move to another square with the same tool equipped (if that is allowed)
+or you can stay in the same (x,y) location and move to a different
+tool, also at a cost.
+
+So perhaps this is then just Djikstra's algorithm: remember the shortest
+known cost to reach each `(x, y, t)` position.
+
+I thought I already had a generic implementation of this, but perhaps not.
+
+We could compute ground values on demand, memoized. Or perhaps it's simple
+enough to just pre-compute a matrix 3x3 what we need?
