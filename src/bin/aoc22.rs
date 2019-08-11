@@ -32,9 +32,6 @@ impl Ground {
 }
 
 struct Map {
-    /// Memoized ground type.
-    g: BTreeMap<Point, Ground>,
-
     /// Memoized erosion levels.
     e: BTreeMap<Point, Erosion>,
 
@@ -46,8 +43,7 @@ struct Map {
 impl Map {
     fn new(depth: usize, target: Point) -> Map {
         Map {
-            g: Default::default(),
-            e: Default::default(),
+            e: BTreeMap::new(),
             depth,
             target,
         }
@@ -69,9 +65,9 @@ impl Map {
             let v2 = self.erosion_at(p.up());
             v1.checked_mul(v2).unwrap()
         };
-        let e = (v + self.depth) % 20183;
-        self.e.insert(p, e);
-        e
+        let eros = (v + self.depth) % 20183;
+        self.e.insert(p, eros);
+        eros
     }
 
     pub fn ground_at(&mut self, p: Point) -> Ground {
