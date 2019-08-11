@@ -1,6 +1,7 @@
 /// https://adventofcode.com/2018/day/11
 use std::cmp::min;
 
+use aoc2018::Matrix;
 use aoc2018::{point, Point};
 
 // Performance can probably be improved by remembering the sum of some
@@ -31,14 +32,13 @@ pub fn main() {
 struct Map {
     /// Power levels indexed by [x][y], with indexes 1-based.
     /// (So, 0 coordinates are wasted.)
-    p: Vec<Vec<i32>>,
+    p: Matrix<i32>,
 }
 
 impl Map {
     pub fn new(grid: i32) -> Map {
-        let mut p: Vec<Vec<i32>> = Vec::with_capacity(SIZE);
+        let mut p = Matrix::new(SIZE + 1, SIZE + 1, i32::min_value());
         for x in 0..SIZE {
-            let mut pp: Vec<i32> = Vec::with_capacity(SIZE);
             for y in 0..SIZE {
                 // Find the fuel cell's rack ID, which is its X coordinate plus 10.
                 let rack_id = x as i32 + 10;
@@ -53,23 +53,21 @@ impl Map {
                 pwr = (pwr / 100) % 10;
                 // Subtract 5 from the power level.
                 pwr -= 5;
-                pp.push(pwr);
+                p[point(x, y)] = pwr;
             }
-            p.push(pp);
         }
         Map { p }
     }
 
     pub fn get(&self, c: (usize, usize)) -> i32 {
-        let (x, y) = c;
-        self.p[x][y]
+        self.p[point(c.0, c.1)]
     }
 
     pub fn squaresum(&self, c: (usize, usize), sqsz: usize) -> i32 {
         let mut s: i32 = 0;
         for x in c.0..(c.0 + sqsz) {
             for y in c.1..(c.1 + sqsz) {
-                s += self.get((x, y));
+                s += self.p[point(x, y)];
             }
         }
         s
@@ -115,7 +113,7 @@ impl Map {
         debug_assert!(sqsz >= 1);
         let oldsz = sqsz - 1;
         for i in 0..oldsz {
-            newpow += self.get((p.x + oldsz, p.y + i)) + self.get((p.x + i, p.y + oldsz));
+            newpow += self.p[point(p.x + oldsz, p.y + i)] + self.p[point(p.x + i, p.y + oldsz)];
         }
         // And count the corner, but only once.
         newpow += self.get((p.x + oldsz, p.y + oldsz));
