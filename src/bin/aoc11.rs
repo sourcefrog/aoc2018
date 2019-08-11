@@ -12,9 +12,17 @@
 
 const SIZE: usize = 301;
 
+fn solve_a() -> ((usize, usize), i32) {
+    Map::new(7672).hottest(3)
+}
+
+fn solve_b() -> ((usize, usize), usize, i32) {
+    Map::new(7672).any_hottest()
+}
+
 pub fn main() {
-    println!("best of size 3: {:?}", Map::new(7672).hottest(3));
-    println!("best of any size: {:?}", Map::new(7672).any_hottest());
+    println!("best of size 3: {:?}", solve_a());
+    println!("best of any size: {:?}", solve_b());
 }
 
 struct Map {
@@ -140,5 +148,15 @@ mod test {
     fn variable_size_2() {
         // For grid serial number 42, the largest total square (with a total power of 119) is 12x12 and has a top-left corner of 232,251, so its identifier is 232,251,12.
         assert_eq!(Map::new(42).any_hottest(), ((232, 251), 12, 119));
+    }
+
+    #[test]
+    fn part_a_solution() {
+        assert_eq!(super::solve_a(), ((22, 18), 29));
+    }
+
+    #[test]
+    fn part_b_solution() {
+        assert_eq!(super::solve_b(), ((234, 197), 14, 98));
     }
 }
