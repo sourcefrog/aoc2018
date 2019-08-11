@@ -1,4 +1,7 @@
 /// https://adventofcode.com/2018/day/11
+use std::cmp::min;
+
+use aoc2018::{point, Point};
 
 // Performance can probably be improved by remembering the sum of some
 // (aligned? even sized?) blocks and using them when computing the sum of
@@ -29,9 +32,6 @@ struct Map {
     /// Power levels indexed by [x][y], with indexes 1-based.
     /// (So, 0 coordinates are wasted.)
     p: Vec<Vec<i32>>,
-
-    #[allow(unused)]
-    grid: i32,
 }
 
 impl Map {
@@ -48,7 +48,8 @@ impl Map {
                 pwr += grid;
                 // Set the power level to itself multiplied by the rack ID.
                 pwr *= rack_id;
-                // Keep only the hundreds digit of the power level (so 12345 becomes 3; numbers with no hundreds digit become 0).
+                // Keep only the hundreds digit of the power level (so 12345 becomes 3;
+                // numbers with no hundreds digit become 0).
                 pwr = (pwr / 100) % 10;
                 // Subtract 5 from the power level.
                 pwr -= 5;
@@ -56,7 +57,7 @@ impl Map {
             }
             p.push(pp);
         }
-        Map { p, grid }
+        Map { p }
     }
 
     pub fn get(&self, c: (usize, usize)) -> i32 {
@@ -91,19 +92,55 @@ impl Map {
         (best_point, best_power)
     }
 
+    /// Return the sum of power within a square of size `sqsz` at `p`, given
+    /// the sum of the power within a square of `sqsz-1`. This can be done
+    /// by just adding the values along the new expanded border.
+    ///
+    /// This is safe to call even with sqsz==1 (and oldpow==0).
+    fn grow_square(&self, sqsz: usize, p: Point, oldpow: i32) -> i32 {
+        // Suppose we've already calculated the 3x3 square starting at (1,2)
+        // and we want to extend that to 4x4.
+        //
+        // ..........
+        // .xxx*.....
+        // .xxx*.....
+        // .xxx*.....
+        // .***@.....
+        //
+        // We need to add the column of 3 (sqsz-1) cells at p.x+sqsz-1
+        // running from p.y down to p.y+oldsz-1. Similarly for the row
+        // running across. And then finally the single corder square marked
+        // @, at p.x+oldsz, p.y+oldsz.
+        let mut newpow = oldpow;
+        debug_assert!(sqsz >= 1);
+        let oldsz = sqsz - 1;
+        for i in 0..oldsz {
+            newpow += self.get((p.x + oldsz, p.y + i)) + self.get((p.x + i, p.y + oldsz));
+        }
+        // And count the corner, but only once.
+        newpow += self.get((p.x + oldsz, p.y + oldsz));
+        newpow
+    }
+
+    /// Find the square within the map that has the largest total power.
+    ///
+    /// Returns the (x,y) coords of the top of that square, its size, and the
+    /// totaly power.
     pub fn any_hottest(&self) -> ((usize, usize), usize, i32) {
         let mut best_point = (0, 0);
         let mut best_power = i32::min_value();
         let mut best_size = 1;
-        for sqsz in 1..=SIZE {
-            for x in 1..=(SIZE - sqsz) {
-                for y in 1..=(SIZE - sqsz) {
-                    let p = (x, y);
-                    let pwr = self.squaresum(p, sqsz);
+        for x in 1..SIZE {
+            for y in 1..SIZE {
+                let p = point(x, y);
+                // Gradually add up the power of increasing-sized squares at p.
+                let mut pwr = 0;
+                for sqsz in 1..min(SIZE - x, SIZE - y) {
+                    pwr = self.grow_square(sqsz, p, pwr);
                     if pwr > best_power {
                         best_size = sqsz;
                         best_power = pwr;
-                        best_point = p;
+                        best_point = (p.x, p.y);
                     }
                 }
             }
