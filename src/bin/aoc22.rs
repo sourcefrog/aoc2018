@@ -1,24 +1,30 @@
 #![allow(dead_code)]
 
+/// Infer the terrain of a cave, and then find the shortest path through it.
+///
 /// https://adventofcode.com/2018/day/22
-
+// use aoc2018::shortest_path;
 use aoc2018::{point, Point};
 
-use std::collections::{BTreeMap};
+use std::collections::BTreeMap;
 
 type Erosion = usize;
 
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
 enum Tool {
     Climbing,
     Torch,
-    None,
+    NoTool,
 }
+use Tool::*;
 
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq)]
 enum Ground {
     Rocky = 0,
     Wet = 1,
     Narrow = 2,
 }
+use Ground::*;
 
 impl Ground {
     pub fn from_int(g: usize) -> Ground {
@@ -38,6 +44,13 @@ struct Map {
     depth: usize,
 
     target: Point,
+}
+
+/// Combination of a location, and a tool.
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, Eq, PartialEq)]
+struct State {
+    p: Point,
+    t: Tool,
 }
 
 impl Map {
@@ -85,6 +98,48 @@ impl Map {
         }
         sum
     }
+
+    /// Return a vec of neighboring states.
+    ///
+    /// The result includes:
+    /// switching to a different permitted tool and staying in the same
+    /// place,
+    /// or moving to a directly neighboring position compatible with the current
+    /// tool.
+    fn neighbors(&mut self, st: State) -> Vec<(State, isize)> {
+        let mut r = Vec::new();
+        let new_tool = match (self.ground_at(st.p), st.t) {
+            (Rocky, Climbing) => Torch,
+            (Rocky, Torch) => Climbing,
+            (Wet, Climbing) => NoTool,
+            (Wet, NoTool) => Climbing,
+            (Narrow, Torch) => NoTool,
+            (Narrow, NoTool) => Torch,
+            (g, t) => panic!("illegal existing state {:?}, {:?}", g, t),
+        };
+        r.push((
+            State {
+                t: new_tool,
+                p: st.p,
+            },
+            7,
+        ));
+
+        for np in st.p.neighbors() {
+            if legal(st.t, self.ground_at(np)) {
+                r.push((State { t: st.t, p: np }, 1));
+            }
+        }
+
+        r
+    }
+}
+
+/// True if tool `t` is allowed in on ground `g`.
+fn legal(t: Tool, g: Ground) -> bool {
+    (g == Rocky && (t == Climbing || t == Torch))
+        || (g == Wet && (t == Climbing || t == NoTool))
+        || (g == Narrow && (t == Torch || t == NoTool))
 }
 
 pub fn solve() -> usize {
