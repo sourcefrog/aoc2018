@@ -1,4 +1,5 @@
 /// mbp AoC2018 solutions - general utilities.
+
 pub mod matrix;
 mod point;
 mod shortest_path;

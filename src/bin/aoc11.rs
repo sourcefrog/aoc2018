@@ -150,7 +150,60 @@ impl Map {
         // corner between them. Then, we extend the strips by adding in
         // one more square in each direction.
 
-        unimplemented!();
+        let mut sqs = Matrix::new(SIZE, SIZE, 0i32);
+        let mut vstr = Matrix::new(SIZE, SIZE, 0i32);
+        let mut hstr = Matrix::new(SIZE, SIZE, 0i32);
+        let mut best_p = point(0, 0);
+        let mut best_power = i32::min_value();
+        let mut best_size = 1;
+
+        // Start at size 1: everything is simply the contents of that cell.
+        for x in 0..SIZE {
+            for y in 0..SIZE {
+                let p = point(x, y);
+                vstr[p] = self.p[p];
+                hstr[p] = self.p[p];
+                sqs[p] = self.p[p];
+                if self.p[p] > best_power {
+                    best_power = self.p[p];
+                    best_p = p;
+                }
+            }
+        }
+
+        for sz in 2..SIZE {
+            // First, grow all the squares (that can still fit) by adding a strip
+            // of sz-1 to the right and one to the bottom and one cell in the
+            // corner.
+            //
+            // Squares that don't fit are just ignored henceforth.
+            let osz = sz - 1;
+            for x in 0..(SIZE - sz) {
+                for y in 0..(SIZE - sz) {
+                    let p = point(x, y);
+                    sqs[p] += vstr[point(x + osz, y)]
+                        + hstr[point(x, y + osz)]
+                        + self.p[point(x + osz, y + osz)];
+                    if sqs[p] > best_power {
+                        best_power = sqs[p];
+                        best_p = p;
+                        best_size = sz;
+                    }
+                }
+            }
+
+            // Now, grow all the strips (that can still fit) from osz to sz
+            // by adding one more square.
+            for x in 0..(SIZE - sz) {
+                for y in 0..(SIZE - sz) {
+                    let p = point(x, y);
+                    vstr[p] += self.p[point(x, y + osz)];
+                    hstr[p] += self.p[point(x + osz, y)];
+                }
+            }
+        }
+
+        ((best_p.x + 1, best_p.y + 1), best_size, best_power)
     }
 
     /// Find the square within the map that has the largest total power.
@@ -181,7 +234,7 @@ impl Map {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
@@ -213,9 +266,21 @@ mod test {
     }
 
     #[test]
+    fn variable_size_1_new() {
+        // For grid serial number 18, the largest total square (with a total power of 113) is 16x16 and has a top-left corner of 90,269, so its identifier is 90,269,16.
+        assert_eq!(Map::new(18).hottest_square(), ((90, 269), 16, 113));
+    }
+
+    #[test]
     fn variable_size_2() {
         // For grid serial number 42, the largest total square (with a total power of 119) is 12x12 and has a top-left corner of 232,251, so its identifier is 232,251,12.
         assert_eq!(Map::new(42).any_hottest(), ((232, 251), 12, 119));
+    }
+
+    #[test]
+    fn variable_size_2_new() {
+        // For grid serial number 42, the largest total square (with a total power of 119) is 12x12 and has a top-left corner of 232,251, so its identifier is 232,251,12.
+        assert_eq!(Map::new(42).hottest_square(), ((232, 251), 12, 119));
     }
 
     #[test]
