@@ -123,6 +123,36 @@ impl Map {
     /// Find the square within the map that has the largest total power.
     ///
     /// Returns the (x,y) coords of the top of that square, its size, and the
+    /// total power.
+    #[allow(dead_code)]
+    pub fn hottest_square(&self) -> ((usize, usize), usize, i32) {
+        // General approach here is to work up through squares of increasing
+        // sizes, starting from 1.
+        //
+        // As we go along, we simply remember the origin, size, and total power
+        // of the most powerful cell we've seen.
+        //
+        // As we go along we remember the sum of power of strips of size
+        // S running vertically down from every possible cell, and also
+        // horizontally across from every possible cell. (Not from those
+        // within S of the boundary.) We also remember the sum of power
+        // for squares of size S in every possible position.
+        //
+        // To start with at S=1 these are all trivially the value of each
+        // cell itself.
+        //
+        // To proceed to S+1, we first extend each of the squares
+        // by adding in the vertical strip for the next column, and the
+        // horizontal strip for the next row, and the single cell in the
+        // corner between them. Then, we extend the strips by adding in
+        // one more square in each direction.
+
+        unimplemented!();
+    }
+
+    /// Find the square within the map that has the largest total power.
+    ///
+    /// Returns the (x,y) coords of the top of that square, its size, and the
     /// totaly power.
     pub fn any_hottest(&self) -> ((usize, usize), usize, i32) {
         let mut best_point = (0, 0);
