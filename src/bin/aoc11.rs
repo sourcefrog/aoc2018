@@ -14,7 +14,7 @@ use aoc2018::{point, Point};
 // And in fact, to move down a line, we need only roll one set of squares in
 // and one set out.
 
-const SIZE: usize = 301;
+const SIZE: usize = 300;
 
 fn solve_a() -> ((usize, usize), i32) {
     Map::new(7672).hottest(3)
@@ -30,8 +30,9 @@ pub fn main() {
 }
 
 struct Map {
-    /// Power levels indexed by [x][y], with indexes 1-based.
-    /// (So, 0 coordinates are wasted.)
+    /// Power levels indexed by `point(x, y)`.
+    /// In the problem description indices are 1-based but for simplicity
+    /// these are 1-based, and we convert on output.
     p: Matrix<i32>,
 }
 
@@ -40,11 +41,13 @@ impl Map {
         let mut p = Matrix::new(SIZE + 1, SIZE + 1, i32::min_value());
         for x in 0..SIZE {
             for y in 0..SIZE {
-                // Find the fuel cell's rack ID, which is its X coordinate plus 10.
-                let rack_id = x as i32 + 10;
+                // Find the fuel cell's rack ID, which is its X coordinate
+                // plus 10.
+                let rack_id = (x + 1) as i32 + 10;
                 // Begin with a power level of the rack ID times the Y coordinate.
-                let mut pwr: i32 = rack_id * y as i32;
-                // Increase the power level by the value of the grid serial number (your puzzle input).
+                let mut pwr: i32 = rack_id * (y + 1) as i32;
+                // Increase the power level by the value of the grid serial
+                // number (your puzzle input).
                 pwr += grid;
                 // Set the power level to itself multiplied by the rack ID.
                 pwr *= rack_id;
@@ -77,8 +80,8 @@ impl Map {
         let mut best_power: i32 = i32::min_value();
         let mut best_point: (usize, usize) = (0, 0);
 
-        for x in 1..=(SIZE - sqsz) {
-            for y in 1..=(SIZE - sqsz) {
+        for x in 0..(SIZE - sqsz) {
+            for y in 0..(SIZE - sqsz) {
                 let p = (x, y);
                 let pwr = self.squaresum(p, sqsz);
                 if pwr > best_power {
@@ -87,7 +90,7 @@ impl Map {
                 }
             }
         }
-        (best_point, best_power)
+        ((best_point.0 + 1, best_point.1 + 1), best_power)
     }
 
     /// Return the sum of power within a square of size `sqsz` at `p`, given
@@ -158,8 +161,8 @@ impl Map {
         let mut best_point = (0, 0);
         let mut best_power = i32::min_value();
         let mut best_size = 1;
-        for x in 1..SIZE {
-            for y in 1..SIZE {
+        for x in 0..SIZE {
+            for y in 0..SIZE {
                 let p = point(x, y);
                 // Gradually add up the power of increasing-sized squares at p.
                 let mut pwr = 0;
@@ -173,7 +176,7 @@ impl Map {
                 }
             }
         }
-        (best_point, best_size, best_power)
+        ((best_point.0 + 1, best_point.1 + 1), best_size, best_power)
     }
 }
 
@@ -183,23 +186,23 @@ mod test {
 
     #[test]
     fn examples() {
-        assert_eq!(Map::new(57).get((122, 79)), -5);
+        assert_eq!(Map::new(57).get((122 - 1, 79 - 1)), -5);
 
         // Fuel cell at 217,196, grid serial number 39: power level  0.
-        assert_eq!(Map::new(39).get((217, 196)), 0);
+        assert_eq!(Map::new(39).get((217 - 1, 196 - 1)), 0);
 
         // Fuel cell at 101,153, grid serial number 71: power level  4.
-        assert_eq!(Map::new(71).get((101, 153)), 4);
+        assert_eq!(Map::new(71).get((101 - 1, 153 - 1)), 4);
     }
 
     #[test]
     fn squaresum_examples() {
         let m = Map::new(18);
-        assert_eq!(m.squaresum((33, 45), 3), 29);
+        assert_eq!(m.squaresum((33 - 1, 45 - 1), 3), 29);
         assert_eq!(m.hottest(3), ((33, 45), 29));
 
         let m = Map::new(42);
-        assert_eq!(m.squaresum((21, 61), 3), 30);
+        assert_eq!(m.squaresum((21 - 1, 61 - 1), 3), 30);
         assert_eq!(m.hottest(3), ((21, 61), 30));
     }
 
