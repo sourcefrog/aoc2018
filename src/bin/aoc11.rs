@@ -1,8 +1,7 @@
-/// https://adventofcode.com/2018/day/11
-use std::cmp::min;
+//! https://adventofcode.com/2018/day/11
 
+use aoc2018::point;
 use aoc2018::Matrix;
-use aoc2018::{point, Point};
 
 // Performance can probably be improved by remembering the sum of some
 // (aligned? even sized?) blocks and using them when computing the sum of
@@ -21,7 +20,7 @@ fn solve_a() -> ((usize, usize), i32) {
 }
 
 fn solve_b() -> ((usize, usize), usize, i32) {
-    Map::new(7672).any_hottest()
+    Map::new(7672).hottest_square()
 }
 
 pub fn main() {
@@ -62,6 +61,7 @@ impl Map {
         Map { p }
     }
 
+    #[cfg(test)]
     pub fn get(&self, c: (usize, usize)) -> i32 {
         self.p[point(c.0, c.1)]
     }
@@ -93,41 +93,10 @@ impl Map {
         ((best_point.0 + 1, best_point.1 + 1), best_power)
     }
 
-    /// Return the sum of power within a square of size `sqsz` at `p`, given
-    /// the sum of the power within a square of `sqsz-1`. This can be done
-    /// by just adding the values along the new expanded border.
-    ///
-    /// This is safe to call even with sqsz==1 (and oldpow==0).
-    fn grow_square(&self, sqsz: usize, p: Point, oldpow: i32) -> i32 {
-        // Suppose we've already calculated the 3x3 square starting at (1,2)
-        // and we want to extend that to 4x4.
-        //
-        // ..........
-        // .xxx*.....
-        // .xxx*.....
-        // .xxx*.....
-        // .***@.....
-        //
-        // We need to add the column of 3 (sqsz-1) cells at p.x+sqsz-1
-        // running from p.y down to p.y+oldsz-1. Similarly for the row
-        // running across. And then finally the single corder square marked
-        // @, at p.x+oldsz, p.y+oldsz.
-        let mut newpow = oldpow;
-        debug_assert!(sqsz >= 1);
-        let oldsz = sqsz - 1;
-        for i in 0..oldsz {
-            newpow += self.p[point(p.x + oldsz, p.y + i)] + self.p[point(p.x + i, p.y + oldsz)];
-        }
-        // And count the corner, but only once.
-        newpow += self.get((p.x + oldsz, p.y + oldsz));
-        newpow
-    }
-
     /// Find the square within the map that has the largest total power.
     ///
     /// Returns the (x,y) coords of the top of that square, its size, and the
     /// total power.
-    #[allow(dead_code)]
     pub fn hottest_square(&self) -> ((usize, usize), usize, i32) {
         // General approach here is to work up through squares of increasing
         // sizes, starting from 1.
@@ -205,32 +174,6 @@ impl Map {
 
         ((best_p.x + 1, best_p.y + 1), best_size, best_power)
     }
-
-    /// Find the square within the map that has the largest total power.
-    ///
-    /// Returns the (x,y) coords of the top of that square, its size, and the
-    /// totaly power.
-    pub fn any_hottest(&self) -> ((usize, usize), usize, i32) {
-        let mut best_point = (0, 0);
-        let mut best_power = i32::min_value();
-        let mut best_size = 1;
-        for x in 0..SIZE {
-            for y in 0..SIZE {
-                let p = point(x, y);
-                // Gradually add up the power of increasing-sized squares at p.
-                let mut pwr = 0;
-                for sqsz in 1..min(SIZE - x, SIZE - y) {
-                    pwr = self.grow_square(sqsz, p, pwr);
-                    if pwr > best_power {
-                        best_size = sqsz;
-                        best_power = pwr;
-                        best_point = (p.x, p.y);
-                    }
-                }
-            }
-        }
-        ((best_point.0 + 1, best_point.1 + 1), best_size, best_power)
-    }
 }
 
 #[cfg(test)]
@@ -260,21 +203,9 @@ mod tests {
     }
 
     #[test]
-    fn variable_size() {
-        // For grid serial number 18, the largest total square (with a total power of 113) is 16x16 and has a top-left corner of 90,269, so its identifier is 90,269,16.
-        assert_eq!(Map::new(18).any_hottest(), ((90, 269), 16, 113));
-    }
-
-    #[test]
     fn variable_size_1_new() {
         // For grid serial number 18, the largest total square (with a total power of 113) is 16x16 and has a top-left corner of 90,269, so its identifier is 90,269,16.
         assert_eq!(Map::new(18).hottest_square(), ((90, 269), 16, 113));
-    }
-
-    #[test]
-    fn variable_size_2() {
-        // For grid serial number 42, the largest total square (with a total power of 119) is 12x12 and has a top-left corner of 232,251, so its identifier is 232,251,12.
-        assert_eq!(Map::new(42).any_hottest(), ((232, 251), 12, 119));
     }
 
     #[test]
