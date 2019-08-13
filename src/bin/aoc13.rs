@@ -1,32 +1,40 @@
-/// https://adventofcode.com/2018/day/13
-// The ascii representation will do as a map, but we need to remember
-// the cart locations and their per-cart intersection counters separately from the map,
-// or we'll lose information about the map when the carts move over curves or intersections.
+//! https://adventofcode.com/2018/day/13
+//!
+//! Mine carts moving over tracks and sometimes colliding with each other.
+//!
+//! Part A is to find the location of the first collision.
+//!
+//! Part B is to find the location of the last remaining cart, after all
+//! the others have collided.
+
+// The ascii representation will do as a map, but we need to remember the cart
+// locations and their per-cart intersection counters separately from the map,
+// or we'll lose information about the map when the carts move over curves or
+// intersections.
+
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
-use std::rc::Rc;
 
-use either::Either;
+/// Coordinates as (y, x).
+type Coords = (usize, usize);
 
-pub fn main() {
+/// Returns the location of the first collision, and of the last remaining
+/// cart.
+fn solve() -> (Option<Coords>, Option<Coords>) {
     let mut s = String::with_capacity(8000);
     File::open("input/input13.txt")
         .unwrap()
         .read_to_string(&mut s)
         .unwrap();
     let mut m = Map::from_string(&s);
-    loop {
-        match m.step() {
-            Either::Left(newm) => {
-                m = newm;
-            }
-            Either::Right(p) => {
-                println!("Collision at x={}, y={}", p.1, p.0);
-                break;
-            }
-        }
-    }
+    m.play()
+}
+
+pub fn main() {
+    let (first_coll, last_cart) = solve();
+    println!("First collision at ({:?}", first_coll.unwrap());
+    println!("Last remaining cart at {:?}", last_cart.unwrap());
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
@@ -157,15 +165,16 @@ impl Cart {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 struct Map {
-    /// Indexed by [y][x]
-    m: Rc<Vec<Vec<char>>>,
+    /// Indexed by [y][x], a map of the track with no carts present.
+    m: Vec<Vec<char>>,
     w: usize,
     h: usize,
 
-    /// Indexed by [y][x], and the value is the number of turns that cart has made,
-    /// starting at 0, .
+    /// Indexed by the current position of the cart as [y][x], and the contents
+    /// describe the state of the cart.  The index is in this order because the
+    /// carts get to move in that order.
     carts: BTreeMap<(usize, usize), Cart>,
 
     tick: usize,
@@ -199,14 +208,17 @@ impl Map {
         Map {
             w: m[0].len(),
             h: m.len(),
-            m: Rc::new(m),
+            m,
             carts,
             tick: 1,
         }
     }
 
-    /// Return the new map, or the location of the first crash, if any.
-    pub fn step(&self) -> Either<Map, (usize, usize)> {
+    /// Take one step.
+    ///
+    /// Update this map. Return the Coords where the first collision of
+    /// this step occurred, if any.
+    pub fn step(&mut self) -> Option<Coords> {
         // First, collect all the positions: we'll visit carts in this
         // (y, x) order exactly once per tick, even as they move.
         //
@@ -214,29 +226,39 @@ impl Map {
         // The new position is one step from the current position, determined by
         // the cart's current direction, the track under it, and its turn counter.
         //
-        // If there is already a cart there, crash. Otherwise, store this cart there.
+        // If there is already a cart there, crash. Otherwise, store this
+        // cart there.
         let mut carts = self.carts.clone();
+        let mut first_coll = None;
 
         let op: Vec<(usize, usize)> = carts.keys().cloned().collect();
         for p in op.iter() {
             let oldc = carts.remove(&p).unwrap();
             let newc = oldc.step(self);
-            println!("step {:?} to {:?}", oldc, newc);
+            // println!("step {:?} to {:?}", oldc, newc);
             let newp = (newc.y, newc.x);
             if carts.contains_key(&newp) {
                 println!("collision at {:?}", newp);
-                return Either::Right(newp);
+                first_coll = first_coll.or(Some(newp));
             }
             carts.insert(newp, newc);
         }
+        self.carts = carts;
+        self.tick += 1;
+        first_coll
+    }
 
-        Either::Left(Map {
-            w: self.w,
-            h: self.h,
-            m: self.m.clone(),
-            carts,
-            tick: self.tick + 1,
-        })
+    /// Play through to the conclusion.
+    ///
+    /// Returns optionally the location of the first collision (the solution
+    /// to part A) and the location of the single last remaining cart if any
+    /// (the solution to part B).
+    pub fn play(&mut self) -> (Option<Coords>, Option<Coords>) {
+        let mut first_coll = None;
+        while self.carts.len() > 1 {
+            first_coll = first_coll.or(self.step());
+        }
+        (first_coll, self.carts.keys().next().copied())
     }
 
     #[cfg(test)]
@@ -266,6 +288,12 @@ mod test {
     use super::*;
 
     #[test]
+    fn correct_answers() {
+        assert_eq!(solve().0, Some((22, 41)));
+        // TODO: Check part B is Some((90, 84))));
+    }
+
+    #[test]
     fn example() {
         let mapstr1 = &r"
 /->-\        
@@ -275,7 +303,7 @@ mod test {
 \-+-/  \-+--/
   \------/   
 "[1..];
-        let m = Map::from_string(mapstr1);
+        let mut m = Map::from_string(mapstr1);
         assert_eq!(m.w, 13);
         assert_eq!(m.h, 6);
         assert_eq!(m.tick, 1);
@@ -289,8 +317,8 @@ mod test {
 \-+-/  \->--/
   \------/   
 "[1..];
-        let m2 = m.step().left().unwrap();
-        check_map(&m2, expect2);
+        assert_eq!(m.step(), None);
+        check_map(&m, expect2);
 
         let expect3 = &r"
 /---v        
@@ -300,9 +328,9 @@ mod test {
 \-+-/  \-+>-/
   \------/   
 "[1..];
-        let m3 = m2.step().left().unwrap();
-        check_map(&m3, expect3);
-        assert_eq!(m3.tick, 3);
+        assert_eq!(m.step(), None);
+        check_map(&m, expect3);
+        assert_eq!(m.tick, 3);
 
         let expect4 = &r"
 /---\        
@@ -312,8 +340,9 @@ mod test {
 \-+-/  \-+->/
   \------/   
 "[1..];
-        let m4 = m3.step().left().unwrap();
-        check_map(&m4, expect4);
+        assert_eq!(m.step(), None);
+        check_map(&m, expect4);
+        assert_eq!(m.tick, 4);
 
         let expect5 = &r"
 /---\        
@@ -323,8 +352,9 @@ mod test {
 \-+-/  \-+--^
   \------/   
 "[1..];
-        let m5 = m4.step().left().unwrap();
-        check_map(&m5, expect5);
+        assert_eq!(m.step(), None);
+        check_map(&m, expect5);
+        assert_eq!(m.tick, 5);
 
         let expect14 = &r"
 /---\        
@@ -334,13 +364,13 @@ mod test {
 \-+-/  ^-+--/
   \------/   
 "[1..];
-        let mut m = m5.clone();
         for _i in 6..=14 {
-            m = m.step().left().unwrap();
+            assert_eq!(m.step(), None);
         }
         check_map(&m, expect14);
+        assert_eq!(m.tick, 14);
 
-        assert_eq!(m.step(), Either::Right((3, 7)));
+        assert_eq!(m.step(), Some((3, 7)));
     }
 
     fn check_map(m: &Map, expected: &str) {
@@ -351,7 +381,7 @@ mod test {
 
     #[test]
     fn linear() {
-        let m = Map::from_string(
+        let mut m = Map::from_string(
             &"\
 |
 v
@@ -365,10 +395,8 @@ v
         assert!(m.carts.contains_key(&(1, 0)));
         assert!(m.carts.contains_key(&(5, 0)));
 
-        let m1 = m.step().left().unwrap();
-
-        let coll = m1.step();
-        assert_eq!(coll, Either::Right((3, 0)));
+        assert_eq!(m.step(), None);
+        assert_eq!(m.step(), Some((3, 0)));
     }
 
     #[test]

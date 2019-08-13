@@ -1,7 +1,9 @@
-/// https://adventofcode.com/2018/day/13
+//! https://adventofcode.com/2018/day/13
+
 // The ascii representation will do as a map, but we need to remember
 // the cart locations and their per-cart intersection counters separately from the map,
 // or we'll lose information about the map when the carts move over curves or intersections.
+
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
