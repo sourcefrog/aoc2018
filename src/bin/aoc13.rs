@@ -12,6 +12,7 @@
 // or we'll lose information about the map when the carts move over curves or
 // intersections.
 
+use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
@@ -233,15 +234,23 @@ impl Map {
 
         let op: Vec<(usize, usize)> = carts.keys().cloned().collect();
         for p in op.iter() {
-            let oldc = carts.remove(&p).unwrap();
-            let newc = oldc.step(self);
-            // println!("step {:?} to {:?}", oldc, newc);
-            let newp = (newc.y, newc.x);
-            if carts.contains_key(&newp) {
-                println!("collision at {:?}", newp);
-                first_coll = first_coll.or(Some(newp));
+            if let Some(oldc) = carts.remove(&p) {
+                let newc = oldc.step(self);
+                // println!("step {:?} to {:?}", oldc, newc);
+                let newp = (newc.y, newc.x);
+                match carts.entry(newp) {
+                    Entry::Occupied(entry) => {
+                        println!("collision at {:?}", newp);
+                        first_coll = first_coll.or(Some(newp));
+                        entry.remove();
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(newc);
+                    }
+                }
+            } else {
+                // Eliminated by a collision earlier in this round
             }
-            carts.insert(newp, newc);
         }
         self.carts = carts;
         self.tick += 1;
@@ -256,7 +265,8 @@ impl Map {
     pub fn play(&mut self) -> (Option<Coords>, Option<Coords>) {
         let mut first_coll = None;
         while self.carts.len() > 1 {
-            first_coll = first_coll.or(self.step());
+            let coll = self.step();
+            first_coll = first_coll.or(coll);
         }
         (first_coll, self.carts.keys().next().copied())
     }
@@ -289,8 +299,7 @@ mod test {
 
     #[test]
     fn correct_answers() {
-        assert_eq!(solve().0, Some((22, 41)));
-        // TODO: Check part B is Some((90, 84))));
+        assert_eq!(solve(), (Some((22, 41)), Some((90, 84))));
     }
 
     #[test]
