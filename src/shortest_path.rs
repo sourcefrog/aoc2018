@@ -1,4 +1,5 @@
-/// Find the shortest path in a graph, using Djikstra's method.
+//! Find the shortest path in a graph, using Djikstra's method.
+
 use std::collections::{BTreeMap, BinaryHeap};
 
 /// Find the shortest path in a graph, using Djikstra's method.
@@ -18,12 +19,12 @@ where
 {
     // Next points to visit, indexed by the *negative* distance, so that the
     // greatest value is the shortest.
-    let mut next = BinaryHeap::<(D, P)>::new();
+    let mut queue = BinaryHeap::<(D, P)>::new();
     // Shortest known distance to reach any point.
     let mut best = BTreeMap::<P, D>::new();
-    next.push((0, origin));
+    queue.push((0, origin));
     loop {
-        let (d, p) = next
+        let (d, p) = queue
             .pop()
             .expect("heap is empty without reaching destination");
         let d = -d;
@@ -31,15 +32,15 @@ where
             // Found a shortest path to the end
             return d;
         }
-        for (np, step) in nbr_fn(p).iter() {
+        for (np, step) in nbr_fn(p) {
             let nd = step + d;
-            if let Some(prev_d) = best.get(np) {
+            if let Some(prev_d) = best.get(&np) {
                 if nd >= *prev_d {
                     continue; // Already found a shorter path; don't revisit.
                 }
             }
-            best.insert(*np, nd);
-            next.push((-nd, *np));
+            best.insert(np, nd);
+            queue.push((-nd, np));
         }
     }
 }

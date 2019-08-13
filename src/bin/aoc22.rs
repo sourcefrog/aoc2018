@@ -1,12 +1,11 @@
-#![allow(dead_code)]
-
-/// Infer the terrain of a cave, and then find the shortest path through it.
-///
-/// https://adventofcode.com/2018/day/22
-// use aoc2018::shortest_path;
-use aoc2018::{point, Point};
+//! Infer the terrain of a cave, and then find the shortest path through it.
+//!
+//! https://adventofcode.com/2018/day/22
 
 use std::collections::BTreeMap;
+
+use aoc2018::shortest_distance;
+use aoc2018::{point, Point};
 
 type Erosion = usize;
 
@@ -14,7 +13,7 @@ type Erosion = usize;
 enum Tool {
     Climbing,
     Torch,
-    NoTool,
+    Neither,
 }
 use Tool::*;
 
@@ -70,13 +69,13 @@ impl Map {
             0
         } else if p.y == 0 {
             // This also handles the (0,0) case.
-            p.x.checked_mul(16807).unwrap()
+            p.x * 16807
         } else if p.x == 0 {
-            p.y.checked_mul(48271).unwrap()
+            p.y * 48271
         } else {
             let v1 = self.erosion_at(p.left());
             let v2 = self.erosion_at(p.up());
-            v1.checked_mul(v2).unwrap()
+            v1 * v2
         };
         let eros = (v + self.depth) % 20183;
         self.e.insert(p, eros);
@@ -107,14 +106,14 @@ impl Map {
     /// or moving to a directly neighboring position compatible with the current
     /// tool.
     fn neighbors(&mut self, st: State) -> Vec<(State, isize)> {
-        let mut r = Vec::new();
+        let mut r = Vec::with_capacity(5);
         let new_tool = match (self.ground_at(st.p), st.t) {
             (Rocky, Climbing) => Torch,
             (Rocky, Torch) => Climbing,
-            (Wet, Climbing) => NoTool,
-            (Wet, NoTool) => Climbing,
-            (Narrow, Torch) => NoTool,
-            (Narrow, NoTool) => Torch,
+            (Wet, Climbing) => Neither,
+            (Wet, Neither) => Climbing,
+            (Narrow, Torch) => Neither,
+            (Narrow, Neither) => Torch,
             (g, t) => panic!("illegal existing state {:?}, {:?}", g, t),
         };
         r.push((
@@ -125,29 +124,55 @@ impl Map {
             7,
         ));
 
-        for np in st.p.neighbors() {
-            if legal(st.t, self.ground_at(np)) {
-                r.push((State { t: st.t, p: np }, 1));
-            }
-        }
+        let t = st.t;
+        r.extend(
+            st.p.neighbors()
+                .iter()
+                .filter(|np| legal(t, self.ground_at(**np)))
+                .map(|np| (State { t, p: *np }, 1)),
+        );
 
         r
+    }
+
+    /// Find the target, walking the shortest path, taking account of tool
+    /// transitions. Returns the time taken.
+    fn rescue(&mut self) -> isize {
+        let start = State {
+            p: point(0, 0),
+            t: Torch,
+        };
+        let dest = State {
+            p: self.target,
+            t: Torch,
+        };
+        // shortest_distance(start, dest, &mut |state| self.neighbors(state))
+        shortest_distance(start, dest, &mut |state| self.neighbors(state))
     }
 }
 
 /// True if tool `t` is allowed in on ground `g`.
 fn legal(t: Tool, g: Ground) -> bool {
-    (g == Rocky && (t == Climbing || t == Torch))
-        || (g == Wet && (t == Climbing || t == NoTool))
-        || (g == Narrow && (t == Torch || t == NoTool))
+    match (g, t) {
+        (Rocky, Climbing)
+        | (Rocky, Torch)
+        | (Wet, Climbing)
+        | (Wet, Neither)
+        | (Narrow, Torch)
+        | (Narrow, Neither) => true,
+        _ => false,
+    }
 }
 
-pub fn solve() -> usize {
-    Map::new(5616, point(10, 785)).calc_risk()
+pub fn solve() -> (usize, isize) {
+    let mut m = Map::new(5616, point(10, 785));
+    (m.calc_risk(), m.rescue())
 }
 
 pub fn main() {
-    println!("Result: {}", solve());;
+    let (a, b) = solve();
+    println!("Part A: {}", a);
+    println!("Part B: {}", b);
 }
 
 #[cfg(test)]
@@ -168,7 +193,13 @@ mod test {
     }
 
     #[test]
-    fn expected_solution() {
-        assert_eq!(super::solve(), 8681);
+    fn correct_solution() {
+        assert_eq!(super::solve(), (8681, 1070));
+    }
+
+    #[test]
+    fn example_walk() {
+        let mut map = Map::new(510, point(10, 10));
+        assert_eq!(map.rescue(), 45);
     }
 }
