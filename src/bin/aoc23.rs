@@ -202,11 +202,12 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
     let mut cov: Vec<BTreeSet<Zone>> = vec![BTreeSet::new(); bots.len()];
 
     for (i, b) in bots.iter().enumerate() {
+        let mut limit = 1000;
         dbg!(i, b);
         // For every previously-found cover, let's add b to it, to see if we can generate some
         // higher-level covering zones.
         let z = b.zone();
-        for j in (0..i).rev() {
+        'bot: for j in (0..i).rev() {
             let newent: Vec<Zone> = cov[j]
                 .iter()
                 .map(|oz| oz.intersect(&z))
@@ -218,6 +219,10 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
                 // track it at j+1.
                 cov[j].remove(&nz);
                 cov[j + 1].insert(nz);
+                limit -= 1;
+                if limit == 0 {
+                    break 'bot;
+                }
             }
             if j + 1 == i {
                 dbg!(&cov[j + 1]);
@@ -231,7 +236,8 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
     // TODO: The highest populated value in `cov` is the solution.
     for j in (0..cov.len()).rev() {
         if !cov[j].is_empty() {
-            // dbg!(&cov[j]);
+            dbg!(&cov[j]);
+            break;
         }
     }
     unimplemented!();
