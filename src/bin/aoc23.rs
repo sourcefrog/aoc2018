@@ -12,6 +12,7 @@ extern crate itertools;
 extern crate regex;
 
 use std::cmp::min;
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Read;
 use std::ops::RangeInclusive;
@@ -196,39 +197,44 @@ fn count_coverage(bots: &[Bot], p: Coord) -> usize {
 // Return the distance from the origin of the point closest to the origin that is covered by the
 // most bots.
 fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
-    let mut best_points = Vec::new();
-    let mut best_matches = 0;
+    // `cov[i]` is a set of all so-far-known zones covered by `i+1`
+    // bots.
+    let mut cov: Vec<BTreeSet<Zone>> = vec![BTreeSet::new(); bots.len()];
 
-    // Number of matches at that point, and the point.
-    let mut res: Vec<(usize, (isize, isize, isize))> = Vec::new();
-
-    for (_i, b) in bots.iter().enumerate() {
-        // dbg!(i, b);
-        for corn in b.corners().iter() {
-            let p = *corn;
-            debug_assert!(b.contains_point(*corn));
-            let matches = count_coverage(bots, p);
-            res.push((matches, *corn));
-            // dbg!(corn, matches);
-            if matches > best_matches {
-                best_points.clear();
-                best_points.push(*corn);
-                best_matches = matches;
-            } else if matches == best_matches {
-                best_points.push(*corn);
+    for (i, b) in bots.iter().enumerate() {
+        dbg!(i, b);
+        // For every previously-found cover, let's add b to it, to see if we can generate some
+        // higher-level covering zones.
+        let z = b.zone();
+        for j in (0..i).rev() {
+            let newent: Vec<Zone> = cov[j]
+                .iter()
+                .map(|oz| oz.intersect(&z))
+                .filter(|iz| !iz.is_empty())
+                .collect();
+            dbg!(j + 1, &newent.len());
+            for nz in newent {
+                // If this exact same zone is already in level j, remove it: we only need to
+                // track it at j+1.
+                cov[j].remove(&nz);
+                cov[j + 1].insert(nz);
+            }
+            if j + 1 == i {
+                dbg!(&cov[j + 1]);
             }
         }
-    }
-    res.sort();
-    res.reverse();
-    dbg!(&res[..10]);
-    dbg!(&best_points, &best_matches);
 
-    best_points
-        .iter()
-        .map(|p| (distance_from_origin(p), *p))
-        .min()
-        .unwrap()
+        // Now let's add new layer 0 zones, covered only by this.
+        cov[0].insert(z);
+    }
+
+    // TODO: The highest populated value in `cov` is the solution.
+    for j in (0..cov.len()).rev() {
+        if !cov[j].is_empty() {
+            // dbg!(&cov[j]);
+        }
+    }
+    unimplemented!();
 }
 
 // Find by an exhaustive search the cells that are most covered.`
@@ -250,7 +256,7 @@ fn exhaustive_coverage(bots: &[Bot], coord_range: RangeInclusive<isize>) -> (isi
             }
         }
     }
-    dbg!(&best_points);
+    // dbg!(&best_points);
     best_points
         .iter()
         .map(|p| (distance_from_origin(p), *p))
