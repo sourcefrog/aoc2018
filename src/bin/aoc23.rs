@@ -11,7 +11,7 @@
 extern crate itertools;
 extern crate regex;
 
-use std::cmp::min;
+use std::cmp::{max, min};
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Read;
@@ -178,16 +178,69 @@ impl Zone {
             self.pxmymz + self.mxpypz,
         )
     }
+
+    /// Return a coordinate in this zone that's closest to the origin.
+    fn closest_to_origin(&self) -> Coord {
+        let xmax1 = (self.pxpypz + self.pxmymz) / 2;
+        println!("x <= {}", xmax1);
+        let xmax2 = (self.pxmypz + self.pxpymz) / 2;
+        println!("x <= {}", xmax2);
+        let xmin1 = -(self.mxpypz + self.mxmymz) / 2;
+        println!("x >= {}", xmin1);
+        let xmin2 = -(self.mxmypz + self.mxpymz) / 2;
+        println!("x >= {}", xmin2);
+
+        if xmin1 < 0 || xmin2 < 0 {
+            // If negative we ought to look at the maximums.
+            unimplemented!();
+        }
+        let x = max(xmin1, xmin2);
+        println!("therefore x={}", x);
+
+        // x + y + z <= pxpypz
+        // x + y - z <= pxpymz
+        // 2y <= pxpypz + pxpymz - 2x
+        let ymax1 = (self.pxpypz + self.pxpymz) / 2 - x;
+        let ymax2 = (self.mxpypz + self.mxpymz) / 2 + x;
+        dbg!(ymax1, ymax2);
+
+        // x - y + z <= pxmypz
+        // x - y - z <= pxmymz
+        // 2x -2y <= pxmypz + pxmymz
+        // -2y <= pxmypz + pxmymz - 2x
+        // y >= -(pxmypz + pxmymz) / 2 + x
+        let ymin1 = -(self.pxmypz + self.pxmymz) / 2 + x;
+        let ymin2 = -(self.mxmypz + self.mxmymz) / 2 - x;
+        dbg!(ymin1, ymin2);
+        if ymin1 < 0 || ymin2 < 0 {
+            unimplemented!();
+        }
+        let y = max(ymin1, ymin2);
+        dbg!(y);
+
+        // -x -y -z <= mxmymz
+        // -z <= mxmymz + x + y
+        // z >= -mxmymz - x - y
+        let zmin1 = -self.mxmymz - x - y;
+        // x + y - z <= pxpymz
+        // -z <= pxpymz - x - y
+        // z >= -pxpymz + x + y
+        let zmin2 = -self.pxpymz + x + y;
+        dbg!(zmin1, zmin2);
+        let z = max(zmin1, zmin2);
+
+        let p = (x, y, z);
+        dbg!(p);
+
+        assert!(self.contains_point(p));
+
+        p
+    }
 }
 
 /// Solve part A from real input.
 fn solve_a() -> usize {
     count_in_range(&load_input())
-}
-
-fn solve_b() -> isize {
-    let bots = load_input();
-    find_most_covered(&bots).0
 }
 
 fn distance_from_origin(p: &(isize, isize, isize)) -> isize {
@@ -200,7 +253,7 @@ fn count_coverage(bots: &[Bot], p: Coord) -> usize {
 }
 
 // Return the distance from the origin of the point closest to the origin that is covered by the
-// most bots.
+// most bots, and that point.
 fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
     // `cov[i]` is a set of all so-far-known zones covered by `i+1`
     // bots.
@@ -208,7 +261,7 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
 
     for (i, b) in bots.iter().enumerate() {
         let mut limit = 1000;
-        dbg!(i, b);
+        // dbg!(i, b);
         // For every previously-found cover, let's add b to it, to see if we can generate some
         // higher-level covering zones.
         let z = b.zone();
@@ -218,7 +271,7 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
                 .map(|oz| oz.intersect(&z))
                 .filter(|iz| !iz.is_empty())
                 .collect();
-            dbg!(j + 1, &newent.len());
+            // dbg!(j + 1, &newent.len());
             for nz in newent {
                 // If this exact same zone is already in level j, remove it: we only need to
                 // track it at j+1.
@@ -230,7 +283,7 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
                 }
             }
             if j + 1 == i {
-                dbg!(&cov[j + 1]);
+                // dbg!(&cov[j + 1]);
             }
         }
 
@@ -241,11 +294,12 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
     // TODO: The highest populated value in `cov` is the solution.
     for j in (0..cov.len()).rev() {
         if !cov[j].is_empty() {
-            dbg!(&cov[j]);
-            break;
+            dbg!(j, &cov[j]);
+            let best_point = cov[j].iter().next().unwrap().closest_to_origin();
+            return (distance_from_origin(&best_point), best_point);
         }
     }
-    unimplemented!();
+    unreachable!();
 }
 
 // Find by an exhaustive search the cells that are most covered.`
@@ -275,9 +329,8 @@ fn exhaustive_coverage(bots: &[Bot], coord_range: RangeInclusive<isize>) -> (isi
         .unwrap()
 }
 
-pub fn main() {
-    // dbg!(solve_a());
-    // println!("Solution to B: {}", solve_b());
+#[allow(unused)]
+fn count_overlapping() {
     let bots = load_input();
     // Number of total overlaps between any pairs.
     let mut overlaps = 0;
@@ -299,6 +352,27 @@ pub fn main() {
         }
     }
     dbg!(overlaps, connected);
+}
+
+fn solve_b() -> isize {
+    // let bots = load_input();
+    //  find_most_covered(&bots).0
+    let z = Zone {
+        pxpypz: 82010405,
+        pxpymz: 21511734,
+        pxmypz: -280464,
+        pxmymz: -60779126,
+        mxpypz: 60779126,
+        mxpymz: 280465,
+        mxmypz: -21511732,
+        mxmymz: -82010396,
+    };
+    z.closest_to_origin().0
+}
+
+pub fn main() {
+    // dbg!(solve_a());
+    println!("Solution to B: {}", solve_b());
 }
 
 #[cfg(test)]
