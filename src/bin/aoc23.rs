@@ -372,7 +372,10 @@ fn solve_b() -> isize {
 
 pub fn main() {
     // dbg!(solve_a());
-    println!("Solution to B: {}", solve_b());
+    //println!("Solution to B: {}", solve_b());
+    let bots = load_input();
+    let p = (10615635, 41145430, 30249331);
+    dbg!(bots.iter().filter(|b| b.contains_point(p)).count());
 }
 
 #[cfg(test)]
