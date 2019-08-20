@@ -66,6 +66,11 @@ impl Bot {
     fn distance(&self, b: &Bot) -> isize {
         (self.x - b.x).abs() + (self.y - b.y).abs() + (self.z - b.z).abs()
     }
+
+    /// True if the two bots have any overlapping squares.
+    fn overlap(&self, b: &Bot) -> bool {
+        self.distance(b) <= (self.r + b.r)
+    }
 }
 
 /// Parse an input string containing bot position descriptions into a vec of
@@ -272,7 +277,28 @@ fn exhaustive_coverage(bots: &[Bot], coord_range: RangeInclusive<isize>) -> (isi
 
 pub fn main() {
     // dbg!(solve_a());
-    println!("Solution to B: {}", solve_b());
+    // println!("Solution to B: {}", solve_b());
+    let bots = load_input();
+    // Number of total overlaps between any pairs.
+    let mut overlaps = 0;
+    // Number of bots that overlap at least one other bot.
+    let mut connected = 0;
+    for (ia, a) in bots.iter().enumerate() {
+        let mut a_touches = 0;
+        for b in &bots {
+            if a.overlap(b) {
+                overlaps += 1;
+                if a != b {
+                    a_touches += 1;
+                }
+            }
+        }
+        println!("bot {:>4} touches {:>4} bots", ia, a_touches);
+        if a_touches > 0 {
+            connected += 1;
+        }
+    }
+    dbg!(overlaps, connected);
 }
 
 #[cfg(test)]
