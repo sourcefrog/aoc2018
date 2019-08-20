@@ -373,9 +373,22 @@ fn solve_b() -> isize {
 pub fn main() {
     // dbg!(solve_a());
     //println!("Solution to B: {}", solve_b());
-    let bots = load_input();
-    let p = (10615635, 41145430, 30249331);
-    dbg!(bots.iter().filter(|b| b.contains_point(p)).count());
+    let mut bots = load_input();
+    bots.sort_by_key(|b| -b.r);
+
+    let mut zone = bots[0].zone();
+    let mut included = 1;
+    for (i, b) in bots.iter().enumerate().skip(1) {
+        dbg!(i, b.r);
+        let new_zone = zone.intersect(&b.zone());
+        if new_zone.is_empty() {
+            println!("skip bot {:>4}", i);
+        } else {
+            zone = new_zone;
+            included += 1;
+        }
+    }
+    dbg!(included, zone);
 }
 
 #[cfg(test)]
