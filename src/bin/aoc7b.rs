@@ -1,4 +1,4 @@
-/// https://adventofcode.com/2018/day/7
+//! https://adventofcode.com/2018/day/7
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::io::prelude::*;

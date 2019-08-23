@@ -1,4 +1,4 @@
-/// Simple 2D integer-indexed point.
+//! Simple 2D integer-indexed point.
 use std::fmt;
 
 #[derive(Copy, Clone, PartialEq, Eq, Ord, PartialOrd)]

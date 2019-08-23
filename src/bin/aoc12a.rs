@@ -1,12 +1,14 @@
 #![allow(dead_code)]
-/// https://adventofcode.com/2018/day/12
-///
-/// Pots are simply binary.
-///
-/// Evolves in generations rather than updating in place.
-///
-/// The furthest it can possibly propagate out to the left or right is
-/// two pots per generation.
+
+//! https://adventofcode.com/2018/day/12
+//!
+//! Pots are simply binary.
+//!
+//! Evolves in generations rather than updating in place.
+//!
+//! The furthest it can possibly propagate out to the left or right is
+//! two pots per generation.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::File;

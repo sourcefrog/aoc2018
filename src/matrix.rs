@@ -1,6 +1,6 @@
-/// A rectangular 2d matrix.
-///
-/// Matrices are indexed by (row, column) coordinates.
+//! A rectangular 2d matrix.
+//!
+//! Matrices are indexed by (row, column) coordinates.
 use std::ops::{Index, IndexMut};
 
 use crate::{point, Point};

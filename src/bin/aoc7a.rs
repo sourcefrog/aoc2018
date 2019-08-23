@@ -1,13 +1,14 @@
-/// https://adventofcode.com/2018/day/7
-///
-/// The input is small enough we can use a somewhat brute-force algorithm:
-///
-/// Parse the input into a sorted map from not-yet-executed postconditions,
-/// to a set of as-yet-unmet preconditions.
-///
-/// Walk that map to find the alphabetically first step that has no unmet
-/// preconditions. Emit it, and then go through the map and remove it from
-/// all precondition sets.
+//! https://adventofcode.com/2018/day/7
+//!
+//! The input is small enough we can use a somewhat brute-force algorithm:
+//!
+//! Parse the input into a sorted map from not-yet-executed postconditions,
+//! to a set of as-yet-unmet preconditions.
+//!
+//! Walk that map to find the alphabetically first step that has no unmet
+//! preconditions. Emit it, and then go through the map and remove it from
+//! all precondition sets.
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::io::prelude::*;

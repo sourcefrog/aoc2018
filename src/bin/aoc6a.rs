@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-/// https://adventofcode.com/2018/day/6
+//! https://adventofcode.com/2018/day/6
+
 // Read the list of coordinates; assign each an index.
 // Make a map and insert the central coordinates as 0 distance from
 // themselves.
@@ -23,6 +23,8 @@ use std::collections::HashMap;
 //
 // Finally, count which landing point has the most squares and hasn't been
 // eliminated.
+
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
 use std::io;

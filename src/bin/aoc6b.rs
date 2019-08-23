@@ -1,8 +1,9 @@
-/// https://adventofcode.com/2018/day/6
-///
-/// For every point, calculate the distance to every landing, stopping if
-/// we get above the limit. If we complete before getting to the limit,
-/// that point counts.
+//! https://adventofcode.com/2018/day/6
+//!
+//! For every point, calculate the distance to every landing, stopping if
+//! we get above the limit. If we complete before getting to the limit,
+//! that point counts.
+
 use std::io;
 use std::io::prelude::*;
 

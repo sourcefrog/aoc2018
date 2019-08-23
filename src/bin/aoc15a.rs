@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 
+//! https://adventofcode.com/2018/day/15
+
 use std::fs::File;
 use std::io::Read;
 
-/// https://adventofcode.com/2018/day/15
 use aoc2018::matrix::Matrix;
 use aoc2018::{point, Point};
 

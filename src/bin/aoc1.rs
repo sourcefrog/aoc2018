@@ -1,4 +1,5 @@
-/// https://adventofcode.com/2018/day/1
+//! https://adventofcode.com/2018/day/1
+
 use std::io;
 use std::io::prelude::*;
 

@@ -1,4 +1,4 @@
-/// https://adventofcode.com/2018/day/9
+//! https://adventofcode.com/2018/day/9
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 

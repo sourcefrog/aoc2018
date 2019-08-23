@@ -1,6 +1,7 @@
 // #![allow(unused)]
 
-/// https://adventofcode.com/2018/day/20
+//! https://adventofcode.com/2018/day/20
+
 use std::collections::BTreeSet;
 use std::env;
 use std::fmt;
