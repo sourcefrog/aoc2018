@@ -7,4 +7,3 @@ edition = "2018"
 [dependencies]
 regex = "1"
 lazy_static = "1"
-either = "1.5"
