@@ -7,4 +7,5 @@ edition = "2018"
 [dependencies]
 regex = "1"
 lazy_static = "1"
-either = "1.5"
+pest = "2.0"
+pest_derive = "2.0"

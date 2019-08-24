@@ -1,0 +1,24 @@
+// Example:
+// 18 units each with 729 hit points (weak to fire; immune to cold, slashing) with an attack that does 8 radiation damage at initiative 10
+
+WHITESPACE = _{ " " }
+
+num = @{ ASCII_DIGIT+ }
+
+immune_heading = _{ "Immune System:" ~ NEWLINE }
+infection_heading = _{ "Infection:" ~ NEWLINE }
+
+group = { units ~ hp ~ vuln? ~ attack ~ initiative ~ NEWLINE }
+weapon = { "cold" | "slashing" | "radiation" | "fire" | "bludgeoning" }
+units = { num ~ "units" }
+hp = { "each with" ~ num ~ "hit points" }
+attack = { "with an attack that does" ~ num ~ weapon ~ "damage" }
+initiative = { "at initiative" ~ num }
+weakness = { "weak to" ~ weapon ~ ( "," ~ weapon )* }
+immune = { "immune to" ~ weapon ~ ( "," ~ weapon )* }
+vuln = { "(" ~ ( weakness | immune ) ~ ( ";" ~ ( weakness | immune ) )? ~ ")" }
+
+immune_system = { immune_heading ~ group+ }
+infection = { infection_heading ~ group+ }
+
+file = { SOI ~ immune_system ~ NEWLINE ~ infection ~ EOI }
