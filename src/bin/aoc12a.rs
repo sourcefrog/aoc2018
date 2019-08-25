@@ -20,7 +20,7 @@ pub fn main() {
         .unwrap()
         .read_to_string(&mut s)
         .unwrap();
-    let mut p = Pots::from_string(&s);
+    let mut p: Pots = s.parse().unwrap();
     for _i in 0..20 {
         p = p.step();
     }
@@ -53,8 +53,10 @@ impl fmt::Debug for Pots {
     }
 }
 
-impl Pots {
-    pub fn from_string(s: &str) -> Pots {
+impl std::str::FromStr for Pots {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut lines = s.lines();
         let pots = Pots::parse_first_line(lines.next().unwrap());
         let mut inst = BTreeMap::default();
@@ -68,12 +70,14 @@ impl Pots {
             let br = from_b(lb[9]);
             assert_eq!(inst.insert(bs, br), None, "key {:?} already present", bs);
         }
-        Pots {
+        Ok(Pots {
             pots,
             inst: Rc::new(inst),
-        }
+        })
     }
+}
 
+impl Pots {
     fn parse_first_line(s: &str) -> BTreeSet<isize> {
         let (prefix, bs) = s.split_at(15);
         assert_eq!(prefix, "initial state: ");
@@ -153,8 +157,7 @@ mod test {
 
     #[test]
     fn example() {
-        let p = Pots::from_string(
-            "\
+        let p:Pots = "\
 initial state: #..#.#..##......###...###
 
 ...## => #
@@ -170,8 +173,7 @@ initial state: #..#.#..##......###...###
 ##.## => #
 ###.. => #
 ###.# => #
-####. => #",
-        );
+####. => #".parse().unwrap();
         println!("p = {:?}", p);
 
         assert_eq!(
