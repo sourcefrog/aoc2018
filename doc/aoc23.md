@@ -1375,3 +1375,122 @@ that bot there will be some `y,z` for that `x`.
 
 Using this, we can find some range of `x` that encompasses at least 983 bots,
 and maybe the range that encompasses a larger range of bots.
+
+...
+
+Another thought about #23:
+
+If three bots A, B, and C, all overlap with each other forming a clique, then
+there must be one common region of overlap between all of them, because of the
+convex shape of the diamonds covered by the bots. It's not possible for A to
+touch B on the right, and A to touch C on its top, and B to reach up to C,
+without the common region between B and C also overlapping with A.
+
+Therefore, finding the point covered by the largest number of bots is the same
+as finding the maximum clique of bots, and then finding the specific
+intersection region between those bots, and then finding the points in that
+region that are closest to the origin.
+
+(Incidentally, on terminology, I discovered from Wikipedia that 'maximal'
+clique is the largest clique including a specific node, whereas the 'maximum'
+clique is the largest clique anywhere in the graph. It's a bit easily
+confused.)
+
+It's easy, and I already have code, to calculate an adjacency matrix between
+bots.
+
+However I was having trouble thinking of a scalable way to find the maximum
+clique, and again from Wikipedia I confirmed that this is a classically NP-hard
+problem. And `n=1000` here is pretty large, making any kind of combinatorial
+approach infeasible.
+
+So it seems there are a few options:
+
+1. Thinking of it as a maximum clique isn't actually the right approach: there
+   is a simpler way, perhaps working in the coordinate space or making use of
+   the definition of distance.
+
+2. Perhaps there's a documented but unobvious algorithm that can solve this in
+   a plausible time even though it is NP-hard? That seems a bit unlikely. *The
+   fastest algorithm known today is a refined version of this method by Robson
+   (2001) which runs in time `O(20.249**n) = O(1.1888**n).`* So that's still
+   1e75 steps, completely infeasible.
+
+3. Perhaps although it's infeasible in the general case, it is soluble in the
+   specific case of this input. It seems like there's one large chunky set of
+   overlapping bots and perhaps only a few candidates really need to be
+   considered for inclusion or exclusion.
+
+From the data above, it seems there are many bots that overlap with ~983 other
+bots. (I guess there are >983 of them?)  Perhaps there is even a higher number.
+
+So perhaps this problem can be restated as: which of the ~17 poorly-connected
+bots do we need to exclude, to still have a clique? There is probably no
+question that the great majority of bots are in a single clique. For each of
+them, if we find it doesn't overlap, we don't need to consider any other
+possibilities for that bot.
+
+So that means there are perhaps ~17 cases to test, or in the unlikely worst
+case perhaps we need to check combinations of them and there are `~2**17`
+combinations?
+
+Sorting the adjacency count data above, this seems to become pretty clear:
+there are 982 bots that touch >=982 bots, and after that it falls off quickly.
+Around that break point:
+
+    bot  960 touches  993 bots
+    bot  879 touches  993 bots
+    bot  795 touches  993 bots
+    bot  662 touches  993 bots
+    bot  634 touches  993 bots
+    bot  600 touches  993 bots
+    bot  593 touches  993 bots
+    bot  549 touches  993 bots
+    bot  400 touches  993 bots
+    bot  377 touches  993 bots
+    bot  339 touches  993 bots
+    bot  324 touches  993 bots
+    bot  319 touches  993 bots
+    ... (many lines)
+    bot   17 touches  982 bots
+    bot   14 touches  982 bots
+    bot    5 touches  982 bots
+    bot    2 touches  982 bots
+    bot  202 touches  523 bots
+    bot  798 touches  361 bots
+    bot  696 touches  313 bots
+    bot   99 touches  271 bots
+    bot  211 touches  207 bots
+    bot  521 touches  191 bots
+    bot  293 touches  166 bots
+
+So it seems, pending verification:
+
+1. There is one large clique of 982 bots. It's possible this is deceiving and
+   they're not actually all well connected, in which case this might be hard
+   again.
+
+2. If there is a large clique of that size then bot 202 and others that come
+   after it clearly cannot be included.
+
+This hypothesis would be consistent with the earlier feedback from the oracle
+that 975 bots is too low.
+
+Am I saying I want to look for the largest `k` where there are at least `k`
+bots that each overlap with `k` bots including themselves? Why is that
+convincing?
+
+Well, if there are not at least `k` bots with that many neighbors, clearly they
+don't form a clique: the correct `k` can't be that high. On the other hand,
+is there any guarantee that `k` is at least this high, and they do form a
+clique? Couldn't it be that there are, let's say, two bots that each overlap
+with just half of the popular bots, but it's hard to tell which?
+
+That might be true.
+
+If we say, `k` has to be at least close to this number, then perhaps it's easy
+to see which of the bots in that list are weakly connected and can then cheaply
+be excluded.
+
+The question remains open, by the way, to work out how far the common region is
+from the origin, but this should be just algebra and not inherently too hard.
