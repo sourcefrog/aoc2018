@@ -22,7 +22,7 @@ impl Point {
     }
 
     pub fn step(self, dir: Dir) -> Point {
-        let mut n = self.clone();
+        let mut n = self;
         match dir {
             Dir::N => n.y -= 1,
             Dir::S => n.y += 1,

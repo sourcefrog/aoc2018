@@ -1,7 +1,7 @@
 // Recipes are only ever appended to the board.
 
 pub fn main() {
-    println!("{}", Board::new().scores_after(890691));
+    println!("{}", Board::new().scores_after(890_691));
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

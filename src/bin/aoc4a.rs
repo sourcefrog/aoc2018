@@ -53,6 +53,11 @@ fn sleepiest_minute(ns: &[&Nap]) -> usize {
     for n in ns {
         // Rust ranges are half-open, same as in these records: the guard is
         // awake in wake_min.
+
+        // Clippy complains about `i` as an index, but since we also want to know `i` and it
+        // doesn't directly correspond to the lenght, it's not so obvious that iterating and
+        // maintaining an enumeration is any simpler...:w
+        #[allow(clippy::needless_range_loop)]
         for i in n.sleep_min..n.wake_min {
             sleeps[i] += 1;
             if sleeps[i] > max_n {

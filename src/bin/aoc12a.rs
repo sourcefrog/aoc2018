@@ -125,8 +125,8 @@ impl Pots {
     /// Return the values of the 5 pots around i
     fn around(&self, i: isize) -> [bool; 5] {
         let mut a = [false; 5];
-        for j in 0..5 {
-            a[j] = self.get(i + (j as isize) - 2);
+        for (j, aa) in a.iter_mut().enumerate() {
+            *aa = self.get(i + (j as isize) - 2);
         }
         a
     }
