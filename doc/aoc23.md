@@ -1494,3 +1494,50 @@ be excluded.
 
 The question remains open, by the way, to work out how far the common region is
 from the origin, but this should be just algebra and not inherently too hard.
+
+...
+
+So the next step here seems to be:
+
+1. Make a list of the bots that touch >= 982 other bots.
+
+2. Check they all actually touch 982 other bots.
+
+3. Find the region that's common between all of them.
+
+4. Find the closest point in that region to the origin.
+
+...
+
+I did find an intersection allegedly between all 983 bots:
+
+    [src/bin/aoc23.rs:403] m = 983
+    [src/bin/aoc23.rs:424] intersection_zone = Zone {
+        pxpypz: 82010405,
+        pxpymz: 21511734,
+        pxmypz: -280464,
+        pxmymz: -60779126,
+        mxpypz: 60779126,
+        mxpymz: 280465,
+        mxmypz: -21511732,
+        mxmymz: -82010396,
+    }
+
+Interesting that here I found 983 whereas previously I thought it would be 982.
+
+Now assuming this is the most-intersected region, we'd need to find the
+Manhattan distance of the closest point in it to the origin. At a guess I said
+this would be the smallest absolute value of the constraints, although perhaps 
+that's off-by-one given the inequalities that define the region.
+
+I could also check that none of the other bots intersect this region at all...
+OK, checked, and that's true.
+
+Perhaps this is not the easiest representation of a `Zone` to work with...
+
+OK, I already have a `closest_to_origin` function, and that seems to get an
+answer that the site accepts. I'm still not totally happy that this will be
+correct on all inputs, but it is right on this input, so that's good...
+
+It turns out perhaps there is no really tidy answer:
+<https://www.reddit.com/r/adventofcode/comments/aa9uvg/day_23_aoc_creators_logic/>.

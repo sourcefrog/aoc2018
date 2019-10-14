@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 //! https://adventofcode.com/2018/day/23
 //!
 //! Cloud of nanobots able to teleport things within a distance of their
@@ -7,6 +5,9 @@
 //!
 //! Really, this is about finding intersections between Manhattan-distance
 //! diamond shapes in 3d space.
+//!
+//! The basic problem is NP-hard, and n=1000, so the challenge here is to get
+//! some reasonable approximation that we can actually compute.
 
 extern crate itertools;
 extern crate regex;
@@ -15,7 +16,6 @@ use std::cmp::{max, min};
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::Read;
-use std::ops::RangeInclusive;
 
 // use itertools::Itertools;
 
@@ -46,6 +46,7 @@ impl Bot {
         }
     }
 
+    #[allow(unused)]
     fn corners(&self) -> [(isize, isize, isize); 6] {
         [
             (self.x - self.r, self.y, self.z),
@@ -57,6 +58,7 @@ impl Bot {
         ]
     }
 
+    #[allow(unused)]
     fn contains_point(&self, p: (isize, isize, isize)) -> bool {
         (self.x - p.0).abs() + (self.y - p.1).abs() + (self.z - p.2).abs() <= self.r
     }
@@ -65,11 +67,6 @@ impl Bot {
     #[allow(unused)]
     fn distance(&self, b: &Bot) -> isize {
         (self.x - b.x).abs() + (self.y - b.y).abs() + (self.z - b.z).abs()
-    }
-
-    /// True if the two bots have any overlapping squares.
-    fn overlap(&self, b: &Bot) -> bool {
-        self.distance(b) <= (self.r + b.r)
     }
 }
 
@@ -231,6 +228,7 @@ impl Zone {
 
         let p = (x, y, z);
         dbg!(p);
+        dbg!(p.0.abs() + p.1.abs() + p.2.abs());
 
         assert!(self.contains_point(p));
 
@@ -243,11 +241,12 @@ fn solve_a() -> usize {
     count_in_range(&load_input())
 }
 
-fn distance_from_origin(p: &(isize, isize, isize)) -> isize {
+fn distance_from_origin(p: Coord) -> isize {
     p.0.abs() + p.1.abs() + p.2.abs()
 }
 
 // Return the number of bots that can reach p.
+#[allow(unused)]
 fn count_coverage(bots: &[Bot], p: Coord) -> usize {
     bots.iter().filter(|b| b.contains_point(p)).count()
 }
@@ -296,99 +295,78 @@ fn find_most_covered(bots: &[Bot]) -> (isize, Coord) {
         if !cov[j].is_empty() {
             dbg!(j, &cov[j]);
             let best_point = cov[j].iter().next().unwrap().closest_to_origin();
-            return (distance_from_origin(&best_point), best_point);
+            return (distance_from_origin(best_point), best_point);
         }
     }
     unreachable!();
 }
 
-// Find by an exhaustive search the cells that are most covered.`
-fn exhaustive_coverage(bots: &[Bot], coord_range: RangeInclusive<isize>) -> (isize, Coord) {
-    let mut best_points = Vec::new();
-    let mut most_matches = 0;
-    for x in coord_range.clone() {
-        for y in coord_range.clone() {
-            for z in coord_range.clone() {
-                let p = (x, y, z);
-                let matches = count_coverage(bots, p);
-                if matches > most_matches {
-                    best_points.clear();
-                    best_points.push(p);
-                    most_matches = matches;
-                } else if matches == most_matches {
-                    best_points.push(p);
-                }
-            }
-        }
-    }
-    // dbg!(&best_points);
-    best_points
-        .iter()
-        .map(|p| (distance_from_origin(p), *p))
-        .min()
-        .unwrap()
-}
-
-#[allow(unused)]
-fn count_overlapping() {
-    let bots = load_input();
-    // Number of total overlaps between any pairs.
-    let mut overlaps = 0;
-    // Number of bots that overlap at least one other bot.
-    let mut connected = 0;
-    for (ia, a) in bots.iter().enumerate() {
-        let mut a_touches = 0;
-        for b in &bots {
-            if a.overlap(b) {
-                overlaps += 1;
-                if a != b {
-                    a_touches += 1;
-                }
-            }
-        }
-        println!("bot {:>4} touches {:>4} bots", ia, a_touches);
-        if a_touches > 0 {
-            connected += 1;
-        }
-    }
-    dbg!(overlaps, connected);
-}
-
 fn solve_b() -> isize {
-    // let bots = load_input();
-    //  find_most_covered(&bots).0
-    let z = Zone {
-        pxpypz: 82010405,
-        pxpymz: 21511734,
-        pxmypz: -280464,
-        pxmymz: -60779126,
-        mxpypz: 60779126,
-        mxpymz: 280465,
-        mxmypz: -21511732,
-        mxmymz: -82010396,
-    };
-    z.closest_to_origin().0
+    let bots = load_input();
+
+    // Make a list of, for each bot, the identities of other bots that touch it.
+    let mut touchs: Vec<BTreeSet<usize>> = vec![Default::default(); bots.len()];
+
+    for (i, a) in bots.iter().enumerate() {
+        for (j, b) in bots.iter().enumerate() {
+            if !a.zone().intersect(&b.zone()).is_empty() {
+                touchs[i].insert(j);
+            }
+        }
+    }
+
+    // Find the largest `m` such that there are at least `m` bots that each intersect
+    // at least `m` bots.
+    let mut tc: Vec<_> = touchs.iter().map(|t| t.len()).collect();
+    tc.sort();
+    let m = tc
+        .iter()
+        .filter(|i| tc.iter().filter(|t| t >= i).count() >= **i)
+        .max()
+        .expect("Found no maximum likely clique");
+    dbg!(m);
+
+    // Find the specific bots that touch at least `m` bots.
+    let included_bots: Vec<Bot> = touchs
+        .iter()
+        .enumerate()
+        .filter(|(_b, t)| t.len() >= *m)
+        .map(|(b, _t)| bots[b])
+        .collect();
+
+    // (I'm not sure this necessarily must be true, but it is true on this input.)
+    assert_eq!(included_bots.len(), *m);
+
+    let excluded_bots: Vec<Bot> = bots
+        .iter()
+        .filter(|b| !included_bots.contains(b))
+        .copied()
+        .collect();
+    assert_eq!(excluded_bots.len(), bots.len() - m);
+
+    // Now (hopefully) find a region that's common between all those bots.
+    let intersection_zone = included_bots
+        .iter()
+        .fold(None, |ac, bot| match ac {
+            None => Some(bot.zone()),
+            Some(z) => Some(bot.zone().intersect(&z)),
+        })
+        .unwrap();
+    dbg!(intersection_zone);
+
+    // Let's check none of the excluded bots overlap with this region. It doesn't prove
+    // it's the largest possible region, but it does prove it overlaps with exactly
+    // `m` bots.
+    assert!(excluded_bots
+        .iter()
+        .all(|b| b.zone().intersect(&intersection_zone).is_empty()));
+
+    distance_from_origin(intersection_zone.closest_to_origin())
 }
 
 pub fn main() {
-    // dbg!(solve_a());
-    //println!("Solution to B: {}", solve_b());
-    let mut bots = load_input();
-    bots.sort_by_key(|b| -b.r);
-
-    let mut zone = bots[0].zone();
-    let mut included = 1;
-    for (i, b) in bots.iter().enumerate().skip(1) {
-        dbg!(i, b.r);
-        let new_zone = zone.intersect(&b.zone());
-        if new_zone.is_empty() {
-            println!("skip bot {:>4}", i);
-        } else {
-            zone = new_zone;
-            included += 1;
-        }
-    }
-    dbg!(included, zone);
+    println!("Solution to A: {}", solve_a());
+    println!("Solution to B: {}", solve_b());
 }
 
 #[cfg(test)]
@@ -398,7 +376,6 @@ mod tests {
     use super::Bot;
 
     use itertools::Itertools;
-    use rand::{Rng, SeedableRng, StdRng};
 
     #[test]
     fn example_1() {
@@ -446,8 +423,13 @@ mod tests {
     }
 
     #[test]
-    fn expected_result() {
+    fn expected_result_a() {
         assert_eq!(super::solve_a(), 232);
+    }
+
+    #[test]
+    fn expected_result_b() {
+        assert_eq!(super::solve_b(), 82010396);
     }
 
     #[test]
@@ -484,55 +466,5 @@ mod tests {
         ";
         let bots = super::parse(v);
         assert_eq!(super::find_most_covered(&bots), (36, (12, 12, 12)));
-    }
-
-    #[test]
-    fn most_covered() {
-        let bots = vec![
-            Bot {
-                x: 0,
-                y: 0,
-                z: 0,
-                r: 10,
-            },
-            Bot {
-                x: 10,
-                y: 0,
-                z: 0,
-                r: 10,
-            },
-        ];
-        assert_eq!(super::find_most_covered(&bots), (0, (0, 0, 0,)));
-    }
-
-    #[test]
-    fn fuzz() {
-        let seed: &[_] = &[1, 2, 3, 4];
-        let mut rng: StdRng = SeedableRng::from_seed(seed);
-
-        let mut bots = Vec::new();
-        for _ in 0..30 {
-            bots.push(Bot {
-                x: rng.gen_range(-50, 50),
-                y: rng.gen_range(-50, 50),
-                z: rng.gen_range(-50, 50),
-                r: rng.gen_range(0, 20),
-            });
-        }
-        let quick = super::find_most_covered(&bots);
-        dbg!(quick);
-        let slow = super::exhaustive_coverage(&bots, -50..=50);
-        dbg!(slow);
-
-        dbg!(bots
-            .iter()
-            .filter(|b| b.contains_point(quick.1))
-            .collect::<Vec<_>>());
-        dbg!(bots
-            .iter()
-            .filter(|b| b.contains_point(slow.1))
-            .collect::<Vec<_>>());
-
-        assert_eq!(quick.0, slow.0);
     }
 }
