@@ -369,8 +369,6 @@ pub fn main() {
 
 #[cfg(test)]
 mod tests {
-    extern crate rand;
-
     use super::Bot;
 
     use itertools::Itertools;
