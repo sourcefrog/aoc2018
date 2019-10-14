@@ -12,7 +12,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
-use std::ops::Range;
 use std::rc::Rc;
 
 pub fn main() {
@@ -29,7 +28,7 @@ pub fn main() {
         println!(
             "left={}  {}",
             p.left(),
-            p.format_pots(p.left()..(p.right() + 1))
+            p.format_pots(p.left()..=p.right())
         );
         let next_p = p.step();
         // if i % 100_000 == 0 {
@@ -136,7 +135,7 @@ impl Pots {
         *self.pots.iter().next().unwrap()
     }
 
-    pub fn format_pots(&self, r: Range<isize>) -> String {
+    pub fn format_pots<R: IntoIterator<Item=isize>>(&self, r: R) -> String {
         let mut s = String::new();
         for i in r {
             s.push(if self.get(i) { '#' } else { '.' });
