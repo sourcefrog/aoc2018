@@ -159,7 +159,7 @@ mod test {
 
     #[test]
     fn example() {
-        let p:Pots = "\
+        let p: Pots = "\
 initial state: #..#.#..##......###...###
 
 ...## => #
@@ -175,7 +175,9 @@ initial state: #..#.#..##......###...###
 ##.## => #
 ###.. => #
 ###.# => #
-####. => #".parse().unwrap();
+####. => #"
+            .parse()
+            .unwrap();
         println!("p = {:?}", p);
 
         assert_eq!(
@@ -203,5 +205,4 @@ initial state: #..#.#..##......###...###
 
         assert_eq!(p1.magic(), 325);
     }
-
 }

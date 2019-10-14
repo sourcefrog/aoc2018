@@ -213,7 +213,7 @@ fn solve() -> usize {
 }
 
 pub fn main() {
-    println!("Result: {}", solve());;
+    println!("Result: {}", solve());
 }
 
 #[cfg(test)]
