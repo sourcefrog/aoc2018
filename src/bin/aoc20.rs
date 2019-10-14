@@ -3,7 +3,6 @@
 //! https://adventofcode.com/2018/day/20
 
 use std::collections::BTreeSet;
-use std::env;
 use std::fmt;
 use std::fs::File;
 use std::io::prelude::*;
@@ -128,6 +127,40 @@ impl Map {
             v.push(p2)
         }
         v
+    }
+
+    /// Find the number of rooms at least 1000 doors from the origin.
+    fn far_rooms(&self) -> usize {
+        // Successively visit all neighboring rooms at distance `depth`, that have not yet been
+        // seen, until we have no more to visit.
+        let mut depth = 0;
+        let mut seen = BTreeSet::new();
+        let mut next = BTreeSet::new();
+        let mut far_count = 0;
+        next.insert(Point::origin());
+        loop {
+            // println!("depth {}, seen={:?}, next={:?}", depth, seen, next);
+            let mut new_rooms = BTreeSet::new();
+            for r in next {
+                assert!(seen.insert(r));
+                if depth >= 1000 {
+                    far_count += 1;
+                }
+                for n in self.neighbors(r) {
+                    if !seen.contains(&n) {
+                        // println!("  visit {:?} from {:?}", n, r);
+                        new_rooms.insert(n);
+                    }
+                }
+            }
+            next = new_rooms;
+            if next.is_empty() {
+                break;
+            } else {
+                depth += 1;
+            }
+        }
+        far_count
     }
 
     /// Find the longest shortest-path from the origin.
@@ -265,15 +298,21 @@ fn load_input() -> String {
     s[1..(s.len() - 1)].to_string()
 }
 
+fn solve_a() -> usize {
+    let inp = load_input();
+    let map = expand(&inp);
+    map.furthest()
+}
+
+fn solve_b() -> usize {
+    let inp = load_input();
+    let map = expand(&inp);
+    map.far_rooms()
+}
+
 pub fn main() {
-    let argv: Vec<_> = env::args().collect();
-    if argv.len() > 1 {
-        expand(&argv[1]);
-    } else {
-        let inp = load_input();
-        let map = expand(&inp);
-        println!("furthest room: {}", map.furthest());
-    }
+    println!("A: furthest room: {}", solve_a());
+    println!("B: far rooms: {}", solve_b());
 }
 
 #[cfg(test)]
@@ -361,5 +400,11 @@ mod test {
     fn solve_20a() {
         let map = super::expand(&super::load_input());
         assert_eq!(map.furthest(), 3725);
+    }
+
+    #[test]
+    fn solve_20b() {
+        let map = super::expand(&super::load_input());
+        assert_eq!(map.far_rooms(), 8541);
     }
 }
