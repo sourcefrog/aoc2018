@@ -44,6 +44,7 @@ enum Side {
     Immune,
     Infection,
 }
+use Side::*;
 
 #[derive(Debug, Clone, Copy)]
 struct AttackParseError {}
@@ -57,10 +58,10 @@ struct Group {
     hp: usize,
 
     // Double damage from these attacks
-    weakness: Vec<Attack>,
+    weaknesses: Vec<Attack>,
 
     // Zero damage from these attacks
-    immune: Vec<Attack>,
+    immunities: Vec<Attack>,
 
     damage: usize,
     attack: Attack,
@@ -85,9 +86,9 @@ type GroupId = usize;
 /// for whether the defending group has enough units to actually receive
 /// all of that damage", as is needed for choosing targets.
 fn potential_damage(attacker: &Group, target: &Group) -> usize {
-    if target.immune.contains(&attacker.attack) {
+    if target.immunities.contains(&attacker.attack) {
         0
-    } else if target.weakness.contains(&attacker.attack) {
+    } else if target.weaknesses.contains(&attacker.attack) {
         2 * attacker.power()
     } else {
         attacker.power()
@@ -117,10 +118,11 @@ fn live_units(gs: &[Group]) -> Vec<GroupId> {
         .collect()
 }
 
-/// Sort a list of groups into the order in which they attack.
+/// Sort a list of groups into the order in which they select targets.
 ///
-/// Returns a list of indexes into the array.
-fn sort_attackers(gs: &[Group]) -> Vec<GroupId> {
+/// Returns a list of indexes into the array that contains indexes for all live units and no
+/// duplicates.
+fn target_selection_order(gs: &[Group]) -> Vec<GroupId> {
     let mut ix = live_units(gs);
 
     // In decreasing order of effective power, groups choose their
@@ -173,8 +175,8 @@ fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>, side: Side, r: &mut Vec
         let mut initiative: Option<usize> = None;
         let mut damage: Option<usize> = None;
         let mut attack: Option<Attack> = None;
-        let mut weakness: Vec<Attack> = Vec::new();
-        let mut immune: Vec<Attack> = Vec::new();
+        let mut weaknesses: Vec<Attack> = Vec::new();
+        let mut immunities: Vec<Attack> = Vec::new();
 
         for i in ig.into_inner() {
             match i.as_rule() {
@@ -198,8 +200,8 @@ fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>, side: Side, r: &mut Vec
                             .map(|f| f.as_str().parse().unwrap())
                             .collect();
                         match r {
-                            Rule::weakness => weakness = weps,
-                            Rule::immune => immune = weps,
+                            Rule::weaknesses => weaknesses = weps,
+                            Rule::immunities => immunities = weps,
                             other => panic!("unexpected {:#?}", other),
                         }
                     }
@@ -214,21 +216,23 @@ fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>, side: Side, r: &mut Vec
             initiative: initiative.unwrap(),
             damage: damage.unwrap(),
             attack: attack.unwrap(),
-            weakness,
-            immune,
+            weaknesses,
+            immunities,
             side,
         });
     }
 }
 
 fn load_input() -> Vec<Group> {
-    let s = std::fs::read_to_string("input/input24.txt").unwrap();
+    parse_string(&std::fs::read_to_string("input/input24.txt").unwrap())
+}
+
+fn parse_string(s: &str) -> Vec<Group> {
     let f = AoC24Parser::parse(Rule::file, &s)
         .expect("failed to parse")
         .next()
         .unwrap();
     let mut gs: Vec<Group> = Vec::new();
-
     for i in f.into_inner() {
         match i.as_rule() {
             Rule::immune_system => parse_groups(i.into_inner(), Side::Immune, &mut gs),
@@ -260,13 +264,49 @@ mod test {
             Group {
                 n_units: 742,
                 hp: 1702,
-                weakness: vec![Radiation],
-                immune: vec![Slashing],
+                weaknesses: vec![Radiation],
+                immunities: vec![Slashing],
                 damage: 22,
                 attack: Radiation,
                 initiative: 13,
                 side: Side::Immune,
             }
         );
+    }
+
+    #[test]
+    fn example() {
+        let gs = super::parse_string(
+            "\
+Immune System:
+17 units each with 5390 hit points (weak to radiation, bludgeoning) with an attack that does 4507 fire damage at initiative 2
+989 units each with 1274 hit points (immune to fire; weak to bludgeoning, slashing) with an attack that does 25 slashing damage at initiative 3
+
+Infection:
+801 units each with 4706 hit points (weak to radiation) with an attack that does 116 bludgeoning damage at initiative 1
+4485 units each with 2961 hit points (immune to radiation; weak to fire, cold) with an attack that does 12 slashing damage at initiative 4
+ ",
+        );
+        assert_eq!(gs.len(), 4);
+        assert_eq!(
+            gs[0],
+            Group {
+                n_units: 17,
+                hp: 5390,
+                weaknesses: vec![Radiation, Bludgeoning],
+                immunities: vec![],
+                attack: Fire,
+                damage: 4507,
+                initiative: 2,
+                side: Immune
+            }
+        );
+
+        // All of them are live.
+        assert_eq!(live_units(&gs), vec![0, 1, 2, 3]);
+
+        let tso = super::target_selection_order(&gs);
+        // Target selection proceeds in order of decreasing power.
+        assert_eq!(tso, vec![2, 0, 3, 1]);
     }
 }

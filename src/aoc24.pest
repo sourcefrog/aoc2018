@@ -14,9 +14,9 @@ units = { num ~ "units" }
 hp = { "each with" ~ num ~ "hit points" }
 attack = { "with an attack that does" ~ num ~ weapon ~ "damage" }
 initiative = { "at initiative" ~ num }
-weakness = { "weak to" ~ weapon ~ ( "," ~ weapon )* }
-immune = { "immune to" ~ weapon ~ ( "," ~ weapon )* }
-vuln = { "(" ~ ( weakness | immune ) ~ ( ";" ~ ( weakness | immune ) )? ~ ")" }
+weaknesses = { "weak to" ~ weapon ~ ( "," ~ weapon )* }
+immunities = { "immune to" ~ weapon ~ ( "," ~ weapon )* }
+vuln = { "(" ~ ( weaknesses | immunities ) ~ ( ";" ~ ( weaknesses | immunities ) )? ~ ")" }
 
 immune_system = { immune_heading ~ group+ }
 infection = { infection_heading ~ group+ }
