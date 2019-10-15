@@ -123,18 +123,31 @@ fn live_units(gs: &[Group]) -> Vec<GroupId> {
 /// Returns a list of indexes into the array that contains indexes for all live units and no
 /// duplicates.
 fn target_selection_order(gs: &[Group]) -> Vec<GroupId> {
-    let mut ix = live_units(gs);
-
+    let mut gids = live_units(gs);
     // In decreasing order of effective power, groups choose their
     // targets; in a tie, the group with the higher initiative chooses first.
-    ix.sort_by(|i, j| {
-        let a = &gs[*i];
-        let b = &gs[*j];
+    gids.sort_by(|&i, &j| {
+        let a = &gs[i];
+        let b = &gs[j];
         b.power()
             .cmp(&a.power())
             .then(b.initiative.cmp(&a.initiative))
     });
-    ix
+    gids
+}
+
+/// Return vec of group ids in the order in which they will attack.
+///
+/// Note this is different to the order in which they select targets.
+///
+/// Groups attack in decreasing order of initiative, regardless of whether they are part of the
+/// infection or the immune system. (If a group contains no units, it cannot attack.)
+///
+/// Note also that targets might be eliminated during the round, after this calculation.
+fn attack_order(gs: &[Group]) -> Vec<GroupId> {
+    let mut gids = live_units(gs);
+    gids.sort_by(|&i, &j| gs[i].initiative.cmp(&gs[j].initiative).reverse());
+    gids
 }
 
 /// For one attacker, choose the target it will attack.
@@ -251,6 +264,13 @@ fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>, side: Side, r: &mut Vec
             side,
         });
     }
+    // The attack ordering algorithm won't be stable if there are any duplicate initiative values,
+    // so let's make sure there aren't.
+    let mut seen_initiative = Vec::new();
+    for g in r {
+        assert!(!seen_initiative.contains(&g.initiative));
+        seen_initiative.push(g.initiative);
+    }
 }
 
 fn load_input() -> Vec<Group> {
@@ -343,5 +363,7 @@ Infection:
 
         let targs = select_targets(&gs);
         assert_eq!(targs, vec![(2, 0), (0, 3), (3, 1), (1, 2)]);
+
+        assert_eq!(attack_order(&gs), vec![3, 1, 0, 2]);
     }
 }
