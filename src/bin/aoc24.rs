@@ -39,6 +39,12 @@ impl std::str::FromStr for Attack {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+enum Side {
+    Immune,
+    Infection,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct AttackParseError {}
 
@@ -60,9 +66,39 @@ struct Group {
     attack: Attack,
 
     initiative: usize,
+    side: Side,
 }
 
-// Given a pest iterator that contains one num, return the parsed num.
+impl Group {
+    /// Each group also has an effective power: the number of units
+    /// in that group multiplied by their attack damage.
+    pub fn power(&self) -> usize {
+        self.n_units * self.damage
+    }
+}
+
+type GroupId = usize;
+
+/// Calculate the potential damage that an attacker could do to a target.
+///
+/// This is "after accounting for weaknesses and immunities, but not accounting
+/// for whether the defending group has enough units to actually receive
+/// all of that damage", as is needed for choosing targets.
+fn potential_damage(attacker: &Group, target: &Group) -> usize {
+    if target.immune.contains(&attacker.attack) {
+        0
+    } else if target.weakness.contains(&attacker.attack) {
+        2 * attacker.power()
+    } else {
+        attacker.power()
+    }
+}
+
+fn can_damage(attacker: &Group, target: &Group) -> bool {
+    potential_damage(attacker, target) > 0
+}
+
+/// Given a pest iterator that contains one num, return the parsed num.
 fn get_num(mut pairs: pest::iterators::Pairs<'_, Rule>) -> usize {
     pairs
         .find(|p| p.as_rule() == Rule::num)
@@ -72,9 +108,63 @@ fn get_num(mut pairs: pest::iterators::Pairs<'_, Rule>) -> usize {
         .unwrap()
 }
 
-fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>) -> Vec<Group> {
-    let mut r = Vec::new();
+/// Return the indexes of groups that are still alive.
+fn live_units(gs: &[Group]) -> Vec<GroupId> {
+    gs.iter()
+        .enumerate()
+        .filter(|(_i, g)| g.n_units > 0)
+        .map(|(i, _)| i)
+        .collect()
+}
 
+/// Sort a list of groups into the order in which they attack.
+///
+/// Returns a list of indexes into the array.
+fn sort_attackers(gs: &[Group]) -> Vec<GroupId> {
+    let mut ix = live_units(gs);
+
+    // In decreasing order of effective power, groups choose their
+    // targets; in a tie, the group with the higher initiative chooses first.
+    ix.sort_by(|i, j| {
+        let a = &gs[*i];
+        let b = &gs[*j];
+        b.power()
+            .cmp(&a.power())
+            .then(b.initiative.cmp(&a.initiative))
+    });
+    ix
+}
+
+/// For one attacker, choose the target it will attack.
+///
+/// Targets are removed from the target vector as they're
+fn choose_target(gs: &[Group], attacker_id: GroupId, targets: &[GroupId]) -> Option<GroupId> {
+    // The attacking group chooses to target the group in the enemy army to
+    // which it would deal the most damage (after accounting for weaknesses
+    // and immunities, but not accounting for whether the defending group has
+    // enough units to actually receive all of that damage).
+
+    // If an attacking group is considering two defending groups to which it
+    // would deal equal damage, it chooses to target the defending group with
+    // the largest effective power; if there is still a tie, it chooses the
+    // defending group with the highest initiative. If it cannot deal any
+    // defending groups damage, it does not choose a target. Defending groups
+    // can only be chosen as a target by one attacking group.
+
+    // The `filter` lets us first discard indexes that can't be damaged, so
+    // the `max_by_key` will see an empty input and return None.
+    let attacker = &gs[attacker_id];
+    targets
+        .iter()
+        .filter(|i| can_damage(attacker, &gs[**i]))
+        .max_by_key(|i| {
+            let t = &gs[**i];
+            (potential_damage(attacker, t), t.power(), t.initiative)
+        })
+        .cloned()
+}
+
+fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>, side: Side, r: &mut Vec<Group>) {
     for ig in pairs {
         assert_eq!(ig.as_rule(), Rule::group);
 
@@ -126,29 +216,28 @@ fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>) -> Vec<Group> {
             attack: attack.unwrap(),
             weakness,
             immune,
+            side,
         });
     }
-    r
 }
 
-fn load_input() -> (Vec<Group>, Vec<Group>) {
+fn load_input() -> Vec<Group> {
     let s = std::fs::read_to_string("input/input24.txt").unwrap();
     let f = AoC24Parser::parse(Rule::file, &s)
         .expect("failed to parse")
         .next()
         .unwrap();
-    let mut immune_system: Vec<Group> = Vec::new();
-    let mut infection: Vec<Group> = Vec::new();
+    let mut gs: Vec<Group> = Vec::new();
 
     for i in f.into_inner() {
         match i.as_rule() {
-            Rule::immune_system => immune_system = parse_groups(i.into_inner()),
-            Rule::infection => infection = parse_groups(i.into_inner()),
+            Rule::immune_system => parse_groups(i.into_inner(), Side::Immune, &mut gs),
+            Rule::infection => parse_groups(i.into_inner(), Side::Infection, &mut gs),
             Rule::EOI => (),
             other => panic!("unexpected {:#?}", other),
         }
     }
-    (immune_system, infection)
+    gs
 }
 
 pub fn main() {
@@ -162,10 +251,12 @@ mod test {
 
     #[test]
     fn load_input() {
-        let (immune_system, infection) = super::load_input();
-        assert_eq!(immune_system.len(), 10);
+        let gs = super::load_input();
+        assert_eq!(gs.len(), 20);
+        assert_eq!(gs.iter().filter(|g| g.side == Side::Immune).count(), 10);
+        assert_eq!(gs.iter().filter(|g| g.side == Side::Infection).count(), 10);
         assert_eq!(
-            immune_system[9],
+            gs[9],
             Group {
                 n_units: 742,
                 hp: 1702,
@@ -173,9 +264,9 @@ mod test {
                 immune: vec![Slashing],
                 damage: 22,
                 attack: Radiation,
-                initiative: 13
+                initiative: 13,
+                side: Side::Immune,
             }
         );
-        assert_eq!(infection.len(), 10);
     }
 }
