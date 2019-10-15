@@ -138,9 +138,7 @@ fn target_selection_order(gs: &[Group]) -> Vec<GroupId> {
 }
 
 /// For one attacker, choose the target it will attack.
-///
-/// Targets are removed from the target vector as they're
-fn choose_target(gs: &[Group], attacker_id: GroupId, targets: &[GroupId]) -> Option<GroupId> {
+fn choose_target(gs: &[Group], attacker_id: GroupId, target_ids: &[GroupId]) -> Option<GroupId> {
     // The attacking group chooses to target the group in the enemy army to
     // which it would deal the most damage (after accounting for weaknesses
     // and immunities, but not accounting for whether the defending group has
@@ -156,14 +154,46 @@ fn choose_target(gs: &[Group], attacker_id: GroupId, targets: &[GroupId]) -> Opt
     // The `filter` lets us first discard indexes that can't be damaged, so
     // the `max_by_key` will see an empty input and return None.
     let attacker = &gs[attacker_id];
-    targets
+    target_ids
         .iter()
-        .filter(|i| can_damage(attacker, &gs[**i]))
-        .max_by_key(|i| {
-            let t = &gs[**i];
+        .filter(|&&i| gs[i].side != attacker.side && can_damage(attacker, &gs[i]))
+        .max_by_key(|&&i| {
+            let t = &gs[i];
             (potential_damage(attacker, t), t.power(), t.initiative)
         })
         .cloned()
+}
+
+/// Choose units to be attacked by all surving units.
+///
+/// Returns a vec of (attacker, target) indicating selections.
+fn select_targets(gs: &[Group]) -> Vec<(GroupId, GroupId)> {
+    let tso = target_selection_order(gs);
+    let mut r = Vec::new();
+    // Each target can only be selected by one attacker.
+    let mut remaining_targets = live_units(gs);
+    for attacker_id in tso {
+        debug_assert!(
+            r.iter().all(|&(a, _t)| a != attacker_id),
+            "attacker occurs twice"
+        );
+        if let Some(target_id) = choose_target(gs, attacker_id, &remaining_targets) {
+            println!("{} selects target {}", attacker_id, target_id);
+            remaining_targets.retain(|&i| i != target_id);
+            debug_assert!(
+                r.iter().all(|&(_a, t)| t != target_id),
+                "target selected twice"
+            );
+            r.push((attacker_id, target_id));
+        } else {
+            println!("{} found no target", attacker_id);
+        }
+    }
+    println!(
+        "these groups are targeted by nobody: {:?}",
+        remaining_targets
+    );
+    r
 }
 
 fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>, side: Side, r: &mut Vec<Group>) {
@@ -235,8 +265,8 @@ fn parse_string(s: &str) -> Vec<Group> {
     let mut gs: Vec<Group> = Vec::new();
     for i in f.into_inner() {
         match i.as_rule() {
-            Rule::immune_system => parse_groups(i.into_inner(), Side::Immune, &mut gs),
-            Rule::infection => parse_groups(i.into_inner(), Side::Infection, &mut gs),
+            Rule::immune_system => parse_groups(i.into_inner(), Immune, &mut gs),
+            Rule::infection => parse_groups(i.into_inner(), Infection, &mut gs),
             Rule::EOI => (),
             other => panic!("unexpected {:#?}", other),
         }
@@ -257,8 +287,8 @@ mod test {
     fn load_input() {
         let gs = super::load_input();
         assert_eq!(gs.len(), 20);
-        assert_eq!(gs.iter().filter(|g| g.side == Side::Immune).count(), 10);
-        assert_eq!(gs.iter().filter(|g| g.side == Side::Infection).count(), 10);
+        assert_eq!(gs.iter().filter(|g| g.side == Immune).count(), 10);
+        assert_eq!(gs.iter().filter(|g| g.side == Infection).count(), 10);
         assert_eq!(
             gs[9],
             Group {
@@ -269,9 +299,11 @@ mod test {
                 damage: 22,
                 attack: Radiation,
                 initiative: 13,
-                side: Side::Immune,
+                side: Immune,
             }
         );
+
+        let _targs = select_targets(&gs);
     }
 
     #[test]
@@ -306,7 +338,10 @@ Infection:
         assert_eq!(live_units(&gs), vec![0, 1, 2, 3]);
 
         let tso = super::target_selection_order(&gs);
-        // Target selection proceeds in order of decreasing power.
+        // Target selection proceeds in order of decreasing power (units * damage).
         assert_eq!(tso, vec![2, 0, 3, 1]);
+
+        let targs = select_targets(&gs);
+        assert_eq!(targs, vec![(2, 0), (0, 3), (3, 1), (1, 2)]);
     }
 }
