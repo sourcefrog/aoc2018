@@ -79,8 +79,12 @@ impl Group {
 
     /// Take damage to a group, eliminating all the units that are reduced to
     /// zero, and ignoring any leftover damage.
-    fn take_damage(&mut self, damage: usize) {
-        self.n_units = self.n_units.saturating_sub(damage / self.hp);
+    ///
+    /// Returns true if at least one unit was eliminated.
+    fn take_damage(&mut self, damage: usize) -> bool {
+        let killed_units = damage / self.hp;
+        self.n_units = self.n_units.saturating_sub(killed_units);
+        killed_units > 0
     }
 
     fn alive(&self) -> bool {
@@ -238,8 +242,13 @@ fn select_targets(gs: &[Group]) -> Vec<(GroupId, GroupId)> {
 }
 
 /// One round of attacks across all groups that are alive and able to attack.
-fn attack_round(gs: &mut [Group]) {
+///
+/// Some input values can cause a battle to a draw, where there are units remaining for both
+/// sides but neither can do enough damage to eliminate even a single opposing unit.
+/// If that happens, this returns false.
+fn attack_round(gs: &mut [Group]) -> bool {
     let targs = select_targets(gs);
+    let mut progress = false;
     for attacker_id in attack_order(gs) {
         if !gs[attacker_id].alive() {
             continue;
@@ -249,20 +258,36 @@ fn attack_round(gs: &mut [Group]) {
             .find(|(a, _t)| *a == attacker_id)
             .map(|(_a, t)| *t)
         {
-            // println!("{} attacks {}", attacker_id, target_id);
             if !gs[target_id].alive() {
                 // println!("   ... but it's already dead");
                 continue;
             }
             let dam = potential_damage(&gs[attacker_id], &gs[target_id]);
-            gs[target_id].take_damage(dam);
+            // println!("{} attacks {} for {} damage", attacker_id, target_id, dam);
+            progress |= gs[target_id].take_damage(dam);
+        }
+    }
+    progress
+}
+
+/// Repeat attack rounds until someone wins, and return the winner and their number
+/// of remaining units.
+///
+/// Returns None if the battle gets stuck in a stalemate.
+fn attack_repeatedly(gs: &mut [Group]) -> Option<(Side, usize)> {
+    loop {
+        if !attack_round(gs) {
+            return None;
+        }
+        if let Some((s, v)) = victory_condition(&gs) {
+            return Some((s, v));
         }
     }
 }
 
-/// If there is only one side remaining, return the total number of units it
-/// has.
-fn victory_condition(gs: &[Group]) -> Option<usize> {
+/// If there is only one side remaining, return which side won and
+/// the total number of units it has.
+fn victory_condition(gs: &[Group]) -> Option<(Side, usize)> {
     let mut n_immune = 0;
     let mut n_infection = 0;
     for g in gs {
@@ -273,9 +298,9 @@ fn victory_condition(gs: &[Group]) -> Option<usize> {
     }
     if n_immune == 0 {
         assert!(n_infection > 0);
-        Some(n_infection)
+        Some((Infection, n_infection))
     } else if n_infection == 0 {
-        Some(n_immune)
+        Some((Immune, n_immune))
     } else {
         None
     }
@@ -366,27 +391,69 @@ fn parse_string(s: &str) -> Vec<Group> {
     gs
 }
 
-fn solve_a() -> usize {
-    let mut gs = load_input();
-    loop {
-        attack_round(&mut gs);
-        if let Some(v) = victory_condition(&gs) {
-            return v;
+/// Give a boost to the damage of all units on one side.
+fn boost_side_damage(gs: &mut [Group], side: Side, boost: usize) {
+    for g in gs.iter_mut() {
+        if g.side == side {
+            g.damage += boost
         }
     }
 }
 
+fn solve_a() -> usize {
+    attack_repeatedly(&mut load_input()).unwrap().1
+}
+
+fn solve_b() -> usize {
+    let orig_gs = load_input();
+
+    let boosted_battle = |boost| {
+        let mut gs = orig_gs.clone();
+        boost_side_damage(&mut gs, Immune, boost);
+        attack_repeatedly(&mut gs)
+    };
+
+    let best_boost = aoc2018::bisection_search(0, 1_000_000, |boost| {
+        match boosted_battle(boost) {
+            // In a stalemate, assume we need to increase the boost.
+            None => false,
+            Some((Immune, _)) => true,
+            Some((Infection, _)) => false,
+        }
+    })
+    .unwrap();
+    // Now recompute the results for that best battle
+    boosted_battle(best_boost).unwrap().1
+}
+
 pub fn main() {
     println!("Solution A: {}", solve_a());
+    println!("Solution B: {}", solve_b());
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
 
+    static EXAMPLE: &str =
+            "\
+Immune System:
+17 units each with 5390 hit points (weak to radiation, bludgeoning) with an attack that does 4507 fire damage at initiative 2
+989 units each with 1274 hit points (immune to fire; weak to bludgeoning, slashing) with an attack that does 25 slashing damage at initiative 3
+
+Infection:
+801 units each with 4706 hit points (weak to radiation) with an attack that does 116 bludgeoning damage at initiative 1
+4485 units each with 2961 hit points (immune to radiation; weak to fire, cold) with an attack that does 12 slashing damage at initiative 4
+ ";
+
     #[test]
     fn known_solution_a() {
         assert_eq!(solve_a(), 22996);
+    }
+
+    #[test]
+    fn known_solution_b() {
+        assert_eq!(solve_b(), 4327);
     }
 
     #[test]
@@ -413,18 +480,8 @@ mod test {
     }
 
     #[test]
-    fn example() {
-        let mut gs = super::parse_string(
-            "\
-Immune System:
-17 units each with 5390 hit points (weak to radiation, bludgeoning) with an attack that does 4507 fire damage at initiative 2
-989 units each with 1274 hit points (immune to fire; weak to bludgeoning, slashing) with an attack that does 25 slashing damage at initiative 3
-
-Infection:
-801 units each with 4706 hit points (weak to radiation) with an attack that does 116 bludgeoning damage at initiative 1
-4485 units each with 2961 hit points (immune to radiation; weak to fire, cold) with an attack that does 12 slashing damage at initiative 4
- ",
-        );
+    fn example_a() {
+        let mut gs = super::parse_string(EXAMPLE);
         assert_eq!(gs.len(), 4);
         assert_eq!(
             gs[0],
@@ -572,6 +629,14 @@ Group 1 contains 782 units
 Group 2 contains 4434 units
 "
         );
-        assert_eq!(victory_condition(&gs), Some(5216));
+        assert_eq!(victory_condition(&gs), Some((Infection, 5216)));
+    }
+
+    #[test]
+    fn example_b() {
+        let mut gs = super::parse_string(EXAMPLE);
+        boost_side_damage(&mut gs, Immune, 1570);
+        let (s, v) = attack_repeatedly(&mut gs).unwrap();
+        assert_eq!((s, v), (Immune, 51));
     }
 }
