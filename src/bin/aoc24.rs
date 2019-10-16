@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+// #![allow(dead_code)]
 
 //! https://adventofcode.com/2018/day/24
 //!
@@ -76,6 +76,16 @@ impl Group {
     pub fn power(&self) -> usize {
         self.n_units * self.damage
     }
+
+    /// Take damage to a group, eliminating all the units that are reduced to
+    /// zero, and ignoring any leftover damage.
+    fn take_damage(&mut self, damage: usize) {
+        self.n_units = self.n_units.saturating_sub(damage / self.hp);
+    }
+
+    fn alive(&self) -> bool {
+        self.n_units > 0
+    }
 }
 
 type GroupId = usize;
@@ -113,9 +123,30 @@ fn get_num(mut pairs: pest::iterators::Pairs<'_, Rule>) -> usize {
 fn live_units(gs: &[Group]) -> Vec<GroupId> {
     gs.iter()
         .enumerate()
-        .filter(|(_i, g)| g.n_units > 0)
+        .filter(|(_i, g)| g.alive())
         .map(|(i, _)| i)
         .collect()
+}
+
+#[cfg(test)]
+fn summarize_state(gs: &[Group]) -> String {
+    fn print_list<'a, W: std::fmt::Write, I: Iterator<Item = &'a Group>>(w: &mut W, it: I) {
+        let mut it = it.enumerate().filter(|(_i, g)| g.alive()).peekable();
+        if it.peek().is_none() {
+            writeln!(w, "No groups remain.").unwrap();
+            return;
+        }
+        for (i, g) in it {
+            writeln!(w, "Group {} contains {} units", i + 1, g.n_units).unwrap();
+        }
+    }
+
+    let mut s = String::new();
+    s.push_str("Immune System:\n");
+    print_list(&mut s, gs.iter().filter(|&g| g.side == Immune));
+    s.push_str("Infection:\n");
+    print_list(&mut s, gs.iter().filter(|&g| g.side == Infection));
+    s
 }
 
 /// Sort a list of groups into the order in which they select targets.
@@ -191,7 +222,7 @@ fn select_targets(gs: &[Group]) -> Vec<(GroupId, GroupId)> {
             "attacker occurs twice"
         );
         if let Some(target_id) = choose_target(gs, attacker_id, &remaining_targets) {
-            println!("{} selects target {}", attacker_id, target_id);
+            // println!("{} selects target {}", attacker_id, target_id);
             remaining_targets.retain(|&i| i != target_id);
             debug_assert!(
                 r.iter().all(|&(_a, t)| t != target_id),
@@ -199,14 +230,55 @@ fn select_targets(gs: &[Group]) -> Vec<(GroupId, GroupId)> {
             );
             r.push((attacker_id, target_id));
         } else {
-            println!("{} found no target", attacker_id);
+            // println!("{} found no target", attacker_id);
         }
     }
-    println!(
-        "these groups are targeted by nobody: {:?}",
-        remaining_targets
-    );
+    // println!( "these groups are targeted by nobody: {:?}", remaining_targets);
     r
+}
+
+/// One round of attacks across all groups that are alive and able to attack.
+fn attack_round(gs: &mut [Group]) {
+    let targs = select_targets(gs);
+    for attacker_id in attack_order(gs) {
+        if !gs[attacker_id].alive() {
+            continue;
+        }
+        if let Some(target_id) = targs
+            .iter()
+            .find(|(a, _t)| *a == attacker_id)
+            .map(|(_a, t)| *t)
+        {
+            // println!("{} attacks {}", attacker_id, target_id);
+            if !gs[target_id].alive() {
+                // println!("   ... but it's already dead");
+                continue;
+            }
+            let dam = potential_damage(&gs[attacker_id], &gs[target_id]);
+            gs[target_id].take_damage(dam);
+        }
+    }
+}
+
+/// If there is only one side remaining, return the total number of units it
+/// has.
+fn victory_condition(gs: &[Group]) -> Option<usize> {
+    let mut n_immune = 0;
+    let mut n_infection = 0;
+    for g in gs {
+        match g.side {
+            Immune => n_immune += g.n_units,
+            Infection => n_infection += g.n_units,
+        }
+    }
+    if n_immune == 0 {
+        assert!(n_infection > 0);
+        Some(n_infection)
+    } else if n_infection == 0 {
+        Some(n_immune)
+    } else {
+        None
+    }
 }
 
 fn parse_groups(pairs: pest::iterators::Pairs<'_, Rule>, side: Side, r: &mut Vec<Group>) {
@@ -294,14 +366,28 @@ fn parse_string(s: &str) -> Vec<Group> {
     gs
 }
 
+fn solve_a() -> usize {
+    let mut gs = load_input();
+    loop {
+        attack_round(&mut gs);
+        if let Some(v) = victory_condition(&gs) {
+            return v;
+        }
+    }
+}
+
 pub fn main() {
-    load_input();
+    println!("Solution A: {}", solve_a());
 }
 
 #[cfg(test)]
 mod test {
-    #[allow(unused)]
     use super::*;
+
+    #[test]
+    fn known_solution_a() {
+        assert_eq!(solve_a(), 22996);
+    }
 
     #[test]
     fn load_input() {
@@ -328,7 +414,7 @@ mod test {
 
     #[test]
     fn example() {
-        let gs = super::parse_string(
+        let mut gs = super::parse_string(
             "\
 Immune System:
 17 units each with 5390 hit points (weak to radiation, bludgeoning) with an attack that does 4507 fire damage at initiative 2
@@ -365,5 +451,127 @@ Infection:
         assert_eq!(targs, vec![(2, 0), (0, 3), (3, 1), (1, 2)]);
 
         assert_eq!(attack_order(&gs), vec![3, 1, 0, 2]);
+
+        println!("{}", summarize_state(&gs));
+        assert_eq!(victory_condition(&gs), None);
+
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 1 contains 17 units
+Group 2 contains 989 units
+Infection:
+Group 1 contains 801 units
+Group 2 contains 4485 units
+"
+        );
+
+        attack_round(&mut gs);
+        println!("{}", summarize_state(&gs));
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 2 contains 905 units
+Infection:
+Group 1 contains 797 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), None);
+
+        attack_round(&mut gs);
+        println!("{}", summarize_state(&gs));
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 2 contains 761 units
+Infection:
+Group 1 contains 793 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), None);
+
+        attack_round(&mut gs);
+        println!("{}", summarize_state(&gs));
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 2 contains 618 units
+Infection:
+Group 1 contains 789 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), None);
+
+        attack_round(&mut gs);
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 2 contains 475 units
+Infection:
+Group 1 contains 786 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), None);
+
+        attack_round(&mut gs);
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 2 contains 333 units
+Infection:
+Group 1 contains 784 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), None);
+
+        attack_round(&mut gs);
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 2 contains 191 units
+Infection:
+Group 1 contains 783 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), None);
+
+        attack_round(&mut gs);
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+Group 2 contains 49 units
+Infection:
+Group 1 contains 782 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), None);
+
+        attack_round(&mut gs);
+        assert_eq!(
+            summarize_state(&gs),
+            "\
+Immune System:
+No groups remain.
+Infection:
+Group 1 contains 782 units
+Group 2 contains 4434 units
+"
+        );
+        assert_eq!(victory_condition(&gs), Some(5216));
     }
 }
