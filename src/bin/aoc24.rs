@@ -132,6 +132,11 @@ fn live_units(gs: &[Group]) -> Vec<GroupId> {
         .collect()
 }
 
+/// Return a vec of bools that is true  where the corresponding unit is alive.
+fn live_unit_mask(gs: &[Group]) -> Vec<bool> {
+    gs.iter().map(|g| g.alive()).collect()
+}
+
 #[cfg(test)]
 fn summarize_state(gs: &[Group]) -> String {
     fn print_list<'a, W: std::fmt::Write, I: Iterator<Item = &'a Group>>(w: &mut W, it: I) {
@@ -186,7 +191,7 @@ fn attack_order(gs: &[Group]) -> Vec<GroupId> {
 }
 
 /// For one attacker, choose the target it will attack.
-fn choose_target(gs: &[Group], attacker_id: GroupId, target_ids: &[GroupId]) -> Option<GroupId> {
+fn choose_target(gs: &[Group], attacker_id: GroupId, target_mask: &[bool]) -> Option<GroupId> {
     // The attacking group chooses to target the group in the enemy army to
     // which it would deal the most damage (after accounting for weaknesses
     // and immunities, but not accounting for whether the defending group has
@@ -202,43 +207,30 @@ fn choose_target(gs: &[Group], attacker_id: GroupId, target_ids: &[GroupId]) -> 
     // The `filter` lets us first discard indexes that can't be damaged, so
     // the `max_by_key` will see an empty input and return None.
     let attacker = &gs[attacker_id];
-    target_ids
-        .iter()
-        .filter(|&&i| gs[i].side != attacker.side && can_damage(attacker, &gs[i]))
-        .max_by_key(|&&i| {
-            let t = &gs[i];
-            (potential_damage(attacker, t), t.power(), t.initiative)
-        })
-        .cloned()
+    gs.iter()
+        .enumerate()
+        .filter(|(i, g)| g.side != attacker.side && can_damage(attacker, g) && target_mask[*i])
+        .max_by_key(|(_i, g)| (potential_damage(attacker, g), g.power(), g.initiative))
+        .map(|(i, _g)| i)
 }
 
 /// Choose units to be attacked by all surving units.
 ///
-/// Returns a vec of (attacker, target) indicating selections.
-fn select_targets(gs: &[Group]) -> Vec<(GroupId, GroupId)> {
+/// Returns a vec t where t[i] is the target (if any) of unit i.
+fn select_targets(gs: &[Group]) -> Vec<Option<GroupId>> {
     let tso = target_selection_order(gs);
-    let mut r = Vec::new();
-    // Each target can only be selected by one attacker.
-    let mut remaining_targets = live_units(gs);
+    let mut targs = vec![None; gs.len()];
+    let mut mask = live_unit_mask(gs);
     for attacker_id in tso {
-        debug_assert!(
-            r.iter().all(|&(a, _t)| a != attacker_id),
-            "attacker occurs twice"
-        );
-        if let Some(target_id) = choose_target(gs, attacker_id, &remaining_targets) {
+        if let Some(target_id) = choose_target(gs, attacker_id, &mask) {
             // println!("{} selects target {}", attacker_id, target_id);
-            remaining_targets.retain(|&i| i != target_id);
-            debug_assert!(
-                r.iter().all(|&(_a, t)| t != target_id),
-                "target selected twice"
-            );
-            r.push((attacker_id, target_id));
-        } else {
-            // println!("{} found no target", attacker_id);
+            debug_assert_eq!(targs[attacker_id], None);
+            debug_assert!(!targs.contains(&Some(target_id)));
+            targs[attacker_id] = Some(target_id);
+            mask[target_id] = false;
         }
     }
-    // println!( "these groups are targeted by nobody: {:?}", remaining_targets);
-    r
+    targs
 }
 
 /// One round of attacks across all groups that are alive and able to attack.
@@ -250,16 +242,8 @@ fn attack_round(gs: &mut [Group]) -> bool {
     let targs = select_targets(gs);
     let mut progress = false;
     for attacker_id in attack_order(gs) {
-        if !gs[attacker_id].alive() {
-            continue;
-        }
-        if let Some(target_id) = targs
-            .iter()
-            .find(|(a, _t)| *a == attacker_id)
-            .map(|(_a, t)| *t)
-        {
-            if !gs[target_id].alive() {
-                // println!("   ... but it's already dead");
+        if let Some(target_id) = targs[attacker_id] {
+            if !gs[attacker_id].alive() || !gs[target_id].alive() {
                 continue;
             }
             let dam = potential_damage(&gs[attacker_id], &gs[target_id]);
@@ -505,7 +489,7 @@ Infection:
         assert_eq!(tso, vec![2, 0, 3, 1]);
 
         let targs = select_targets(&gs);
-        assert_eq!(targs, vec![(2, 0), (0, 3), (3, 1), (1, 2)]);
+        assert_eq!(targs, vec![Some(3), Some(2), Some(0), Some(1)]);
 
         assert_eq!(attack_order(&gs), vec![3, 1, 0, 2]);
 
