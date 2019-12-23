@@ -1,0 +1,82 @@
+The program is in https://adventofcode.com/2018/day/19/input.
+
+ip=3  [0, 1, 9, 10551425, 0, 3] inst=Inst { opcode: Mulr, a: 1, b: 2, c: 4 } [0, 1, 9, 10551425, 9, 3]
+ip=4  [0, 1, 9, 10551425, 9, 4] inst=Inst { opcode: Eqrr, a: 4, b: 3, c: 4 } [0, 1, 9, 10551425, 0, 4]
+ip=5  [0, 1, 9, 10551425, 0, 5] inst=Inst { opcode: Addr, a: 4, b: 5, c: 5 } [0, 1, 9, 10551425, 0, 5]
+ip=6  [0, 1, 9, 10551425, 0, 6] inst=Inst { opcode: Addi, a: 5, b: 1, c: 5 } [0, 1, 9, 10551425, 0, 7]
+ip=8  [0, 1, 9, 10551425, 0, 8] inst=Inst { opcode: Addi, a: 2, b: 1, c: 2 } [0, 1, 10, 10551425, 0, 8]
+ip=9  [0, 1, 10, 10551425, 0, 9] inst=Inst { opcode: Gtrr, a: 2, b: 3, c: 4 } [0, 1, 10, 10551425, 0, 9]
+ip=10 [0, 1, 10, 10551425, 0, 10] inst=Inst { opcode: Addr, a: 5, b: 4, c: 5 } [0, 1, 10, 10551425, 0, 10]
+ip=11 [0, 1, 10, 10551425, 0, 11] inst=Inst { opcode: Seti, a: 2, b: 4, c: 5 } [0, 1, 10, 10551425, 0, 2]
+ip=3  [0, 1, 10, 10551425, 0, 3] inst=Inst { opcode: Mulr, a: 1, b: 2, c: 4 } [0, 1, 10, 10551425, 10, 3]
+
+IP is bound to register 5 (the last.)
+
+It enters this cycle passing through instructions at 3, 4, 5, 6, 8, 9, 10, 11.
+
+*  0: addi 5 16 5     r5 = r5 + 16    /// Jump to 16 (and continue at 17)
+   1: seti 1 3 1      r1 = 1         
+   2: seti 1 1 2      r2 = 1         /// Start of outer loop, from @15
+   3: mulr 1 2 4      r4 = r1 * r2   /// Start of inner loop, from @11
+   4: eqrr 4 3 4      r4 = r4 == r3  /// Compare r1 * r2 == r3?
+   5: addr 4 5 5      r5 = r4 + r5   /// Skip follow instruction if r1 * r2 == r3?
+   6: addi 5 1 5      r5 = r5 + 1    /// Skip the following instruction, @7
+   7: addr 1 0 0      r0 = r0 + r1   /// Increase r0 (normally skipped)
+   8: addi 2 1 2      r2 = r2 + 1    /// Increment r2
+   9: gtrr 2 3 4      r4 = r2 > r3   /// Compare
+  10: addr 5 4 5      r5 = r5 + r4   /// Skip following instruction if r2 > r3 
+* 11: seti 2 4 5      r5 = 2         /// Loop back to after @2 (the 4 is ignored), inner loop
+  12: addi 1 1 1      r1 = r1 + 1    /// Increment r1
+  13: gtrr 1 3 4      r4 = r1 > r3   /// Compare
+  14: addr 4 5 5      r5 = r4 + r5   /// Skip following instruction if r1 > r3
+* 15: seti 1 5 5      r5 = 1         /// Loop back to after @1
+* 16: mulr 5 5 5      r5 = r5 * r5   /// r5 = 15 * 15; terminates
+
+At a glance it looks like the only thing that will set r5 (IP) out of range is @16, `mulr 5 5 5`.
+So, how can we reach IP 15? And what will be in r0 when we get there?
+
+The only operations that update IP (r5) within this loop are, @5, @6, @10, @11, @14, @15, @16.
+
+@5, unless we jump directly to it, is preceded by `eqrr 4 3 4` which makes r4 either 0 or 1, and 
+so `addr 4 5 5` @5 can only skip the following instruction.
+
+@6, if reached, simply skips instruction 7. 
+
+The 4-5-6 pattern seems to be a double negative, where we skip an instruction that itself just 
+skips one instruction?
+
+    if r4 == r3 { r0 += r1 }
+
+@10 also conditionally skips the following instruction depending on the values of r2 and r3.
+
+@11 (conditionally skipped) unconditionally loops back to before @3.
+
+@14, reached if @11 was skipped, also conditionally skips the following instruction, which is a loop 
+back to 1.
+
+So to reach @16, we must have not looped back at @15 or @11. The other jumps are just if statements.
+
+We'll skip @15, and so reach @16, if r1 > r3 (at @13). We'll skip @11 and so have a chance to get to 
+@16 if r2 > r3 (at @13).  Happily, r3 never seems to get incremented in this loop, after being set up
+in the initization section. 
+
+So it's two nested loops, containing an if statement, with apparently no other tricks
+
+r0 seems to be incremented in each pass through the inner loop when r1*r2 == r3.
+
+r2 is reset to 1 on each outer loop, incremented within the inner loop, and the inner loop 
+terminates when r2 > r3.
+
+r1 is set to 1 at the start of the program (@1) incremented by 1 on each pass through the 
+outer loop (@12) and the program terminates when r1 > r3 (@13).
+
+So this overall seems to be 
+
+    for r1 in 1..=r3:
+      for r2 in 1..=r3:
+        if r1 * r2 == r3:
+          r0 += r1
+          
+So it seems like a laborious way to calculate the sum of the factors of r3 == 10551425?
+
+And that is indeed correct: the answer is 13083798.

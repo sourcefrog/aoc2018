@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// https://adventofcode.com/2018/day/1#part2
+//! https://adventofcode.com/2018/day/1#part2
+
 use std::collections::HashSet;
 use std::io;
 use std::io::prelude::*;

@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-/// https://adventofcode.com/2018/day/1
+//! https://adventofcode.com/2018/day/1
+
 use std::io;
 use std::io::prelude::*;
 
